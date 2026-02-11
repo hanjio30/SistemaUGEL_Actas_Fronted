@@ -32,7 +32,8 @@ export default function UsuariosModule() {
     estado: 'Activo'
   });
 
-  const API_URL = 'http://localhost:8000/api';
+  //const API_URL = 'http://localhost:8000/api';
+  const API_URL = 'https://sistemaugel-actas-backend.onrender.com/api';
 
   useEffect(() => {
     cargarUsuarios();
