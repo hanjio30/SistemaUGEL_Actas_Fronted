@@ -1,7 +1,7 @@
 /** @jsxImportSource preact */
 import { useState, useEffect } from 'preact/hooks';
 
-const API_URL = 'http://localhost:8000/api';
+const API_URL = 'https://sistemaugel-actas-backend.onrender.com/api';
 
 export default function ReportesModule({ usuario }) {
   const [tipoReporte, setTipoReporte] = useState('');

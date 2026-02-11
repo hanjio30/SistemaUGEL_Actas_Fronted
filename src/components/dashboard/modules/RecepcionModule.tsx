@@ -39,7 +39,7 @@ export default function RecepcionModule() {
   const [nuevoTelefono, setNuevoTelefono] = useState('');
 
   // Configuración de API
-  const API_URL = 'http://localhost:8000/api';
+  const API_URL = 'https://sistemaugel-actas-backend.onrender.com/api';
 
   // Inicializar fecha actual
   useEffect(() => {

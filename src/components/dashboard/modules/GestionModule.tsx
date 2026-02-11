@@ -12,7 +12,7 @@ export default function GestionModule() {
   const [modoEdicion, setModoEdicion] = useState(false);
   const [formData, setFormData] = useState({});
 
-  const API_BASE = 'http://localhost:8000/api';
+  const API_BASE = 'https://sistemaugel-actas-backend.onrender.com/api';
 
   const EstilosImpresion = () => (
   <style>{`

@@ -20,7 +20,7 @@ export default function AsuntosModule() {
   });
 
   // Configuración de la API - ajustar según tu configuración de Laravel
-  const API_BASE = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000/api';
+  const API_BASE = import.meta.env.PUBLIC_API_URL || 'https://sistemaugel-actas-backend.onrender.com/api';
 
   // Cargar documentos al montar el componente
   useEffect(() => {

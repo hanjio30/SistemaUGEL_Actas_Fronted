@@ -1,7 +1,7 @@
 /** @jsxImportSource preact */
 import { useState, useEffect } from 'preact/hooks';
 
-const API_BASE = 'http://localhost:8000/api';
+const API_BASE = 'https://sistemaugel-actas-backend.onrender.com/api';
 
 export default function AtencionModule() {
   const [expedientes, setExpedientes] = useState([]);

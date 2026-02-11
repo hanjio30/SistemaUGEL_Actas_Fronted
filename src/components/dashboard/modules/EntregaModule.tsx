@@ -19,7 +19,7 @@ export default function EntregaModule() {
   const [showVoucher, setShowVoucher] = useState(false);
   const [voucherData, setVoucherData] = useState(null);
 
-  const API_URL = 'http://localhost:8000/api';
+  const API_URL = 'https://sistemaugel-actas-backend.onrender.com/api';
 
   // Cargar usuario desde sessionStorage (IGUAL QUE EN ATENCIONMODULE)
   useEffect(() => {

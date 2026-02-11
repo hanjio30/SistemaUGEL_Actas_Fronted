@@ -13,7 +13,7 @@ export default function ObservadosModule() {
   const [sendingNotifications, setSendingNotifications] = useState(false);
 
   // URL base de la API - AJUSTA ESTO según tu configuración
-  const API_BASE_URL = 'http://localhost:8000/api'; // Cambia el puerto si es necesario
+  const API_BASE_URL = 'https://sistemaugel-actas-backend.onrender.com/api'; // Cambia el puerto si es necesario
 
   // Cargar expedientes observados
   useEffect(() => {
