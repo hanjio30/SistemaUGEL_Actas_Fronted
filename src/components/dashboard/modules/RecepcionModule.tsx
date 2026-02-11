@@ -939,7 +939,7 @@ export default function RecepcionModule() {
                 
                 <div style={{ borderTop: '1px solid #6b7280', margin: '20px 0', paddingTop: '15px', fontSize: '12px' }}>
                   <p style={{ margin: '5px 0' }}>CONSULTE EL ESTADO DE SU EXPEDIENTE EN:</p>
-                  <p style={{ margin: '5px 0' }}>www.ugelsanta.gob.pe/consulta</p>
+                  <p style={{ margin: '5px 0' }}>https://sistema-ugel-actas-fronted.vercel.app/consulta-publica</p>
                   <p style={{ margin: '5px 0' }}>Ingresando su código de seguimiento</p>
                 </div>
                 
