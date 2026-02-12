@@ -26,11 +26,25 @@ export default function ReportesModule({ usuario }) {
   }, []);
 
   const establecerFechasDefault = () => {
-    const hoy = new Date();
-    const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-    setFechaInicio(primerDia.toISOString().split('T')[0]);
-    setFechaFin(hoy.toISOString().split('T')[0]);
-  };
+  // ✅ CORRECCIÓN: Generar fechas locales sin desfase UTC
+  const hoy = new Date();
+  
+  // Fecha de inicio: primer día del mes actual
+  const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  const añoInicio = primerDia.getFullYear();
+  const mesInicio = String(primerDia.getMonth() + 1).padStart(2, '0');
+  const diaInicio = String(primerDia.getDate()).padStart(2, '0');
+  const fechaInicioLocal = `${añoInicio}-${mesInicio}-${diaInicio}`;
+  
+  // Fecha fin: día actual
+  const añoFin = hoy.getFullYear();
+  const mesFin = String(hoy.getMonth() + 1).padStart(2, '0');
+  const diaFin = String(hoy.getDate()).padStart(2, '0');
+  const fechaFinLocal = `${añoFin}-${mesFin}-${diaFin}`;
+  
+  setFechaInicio(fechaInicioLocal);
+  setFechaFin(fechaFinLocal);
+};
 
   const cargarDocumentos = async () => {
     try {
