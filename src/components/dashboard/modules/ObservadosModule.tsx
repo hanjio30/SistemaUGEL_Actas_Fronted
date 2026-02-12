@@ -127,8 +127,13 @@ export default function ObservadosModule() {
     try {
       // ✅ IMPORTANTE: Al corregir, actualizamos la fecha de recepción a HOY
       // para que los días transcurridos empiecen desde 0
-      const fechaHoy = new Date().toISOString().split('T')[0]; // Formato: YYYY-MM-DD
-      
+      // ✅ CORRECCIÓN: Generar fecha local sin desfase UTC
+          const hoy = new Date();
+          const año = hoy.getFullYear();
+          const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+          const dia = String(hoy.getDate()).padStart(2, '0');
+          const fechaHoy = `${año}-${mes}-${dia}`; // Formato: YYYY-MM-DD en zona local
+
       const response = await fetch(`${API_BASE_URL}/expedientes/${expedienteACorregir.id_expediente}`, {
         method: 'PUT',
         headers: {
