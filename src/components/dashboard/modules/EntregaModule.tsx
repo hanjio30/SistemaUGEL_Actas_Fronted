@@ -251,7 +251,12 @@ export default function EntregaModule() {
         expediente: expediente.num_expediente,
         codigo: expediente.firma_ruta,
         fechaRecepcion: formatearFecha(expediente.fecha_recepcion),
-        fechaEntrega: formatearFecha(fechaEntrega.toISOString()),
+        fechaEntrega: (() => {
+          const año = fechaEntrega.getFullYear();
+          const mes = String(fechaEntrega.getMonth() + 1).padStart(2, '0');
+          const dia = String(fechaEntrega.getDate()).padStart(2, '0');
+          return formatearFecha(`${año}-${mes}-${dia}`);
+        })(),
         horaEntrega: fechaEntrega.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' }),
         tiempoAtencion: calcularTiempoAtencion(),
         solicitante: expediente.solicitante,
