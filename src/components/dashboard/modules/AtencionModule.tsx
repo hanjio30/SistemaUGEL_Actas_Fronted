@@ -682,7 +682,13 @@ export default function AtencionModule() {
                 </p>
                 <p style={{ fontSize: '12px', color: '#6b7280' }}>
                   Fecha de actualización: <span style={{ fontWeight: '600', color: '#083f8f' }}>
-                    {formatearFecha(new Date().toISOString())}
+                    {(() => {
+                      const hoy = new Date();
+                      const año = hoy.getFullYear();
+                      const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+                      const dia = String(hoy.getDate()).padStart(2, '0');
+                      return formatearFecha(`${año}-${mes}-${dia}`);
+                    })()}
                   </span>
                 </p>
               </div>
