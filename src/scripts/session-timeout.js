@@ -1,4 +1,5 @@
-const LIMITE_MS = 2 * 60 * 60 * 1000; // 2 horas
+//const LIMITE_MS = 2 * 60 * 60 * 1000; // 2 horas
+const LIMITE_MS = 1 * 60 * 1000; // 1 minuto (SOLO PARA PRUEBA)
 const CLAVE = 'ultima_actividad';
 const LOGIN_URL = '/?expirada=1';
 
@@ -38,7 +39,8 @@ let ultimoRegistro = 0;
     }, { passive: true });
 });
 
-setInterval(() => { if (haExpirado()) cerrarSesion(); }, 60 * 1000);
+//setInterval(() => { if (haExpirado()) cerrarSesion(); }, 60 * 1000);
+setInterval(() => { if (haExpirado()) cerrarSesion(); }, 5 * 1000); // revisa cada 5 s (SOLO PRUEBA)
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden && haExpirado()) cerrarSesion();
 });
