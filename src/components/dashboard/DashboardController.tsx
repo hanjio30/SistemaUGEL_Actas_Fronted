@@ -62,6 +62,7 @@ export default function DashboardController({ colaboradorModules, adminModules }
     };
     const date = new Date().toLocaleDateString('es-ES', options);
     setCurrentDate(date.charAt(0).toUpperCase() + date.slice(1));
+    import('../../scripts/session-timeout.js');
   }, []);
 
   if (!user) return null;

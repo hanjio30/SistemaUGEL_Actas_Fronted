@@ -26,7 +26,11 @@ const PUBLIC_API_URL = import.meta.env.PUBLIC_API_URL;
             </div>
 
             <div id="error-message" class="error-message" style="display: none;"></div>
-
+            
+            <div id="expired-message" class="error-message" style="display: none; border-left-color:#f59e0b; background:#fef3c7; color:#92400e;">
+                ⏱ Su sesión se cerró por inactividad. Ingrese nuevamente.
+            </div>
+            
             <form id="loginForm" class="login-form">
                 <div class="input-group">
                     <div class="input-icon">
@@ -654,6 +658,40 @@ const PUBLIC_API_URL = import.meta.env.PUBLIC_API_URL;
         }
     });
 
+    // Aviso si viene de sesión expirada
+    if (new URLSearchParams(window.location.search).get('expirada') === '1') {
+        document.getElementById('expired-message').style.display = 'block';
+    }
+
+    // Cuenta regresiva de bloqueo
+    let countdownTimer = null;
+    function iniciarBloqueo(segundos) {
+        clearInterval(countdownTimer);
+        let restante = segundos;
+        loginButton.disabled = true;
+
+        const pintar = () => {
+            const m = Math.floor(restante / 60);
+            const s = String(restante % 60).padStart(2, '0');
+            buttonText.textContent = `Bloqueado: ${m}:${s}`;
+            buttonText.style.display = 'block';
+            spinner.style.display = 'none';
+        };
+
+        pintar();
+        countdownTimer = setInterval(() => {
+            restante--;
+            if (restante <= 0) {
+                clearInterval(countdownTimer);
+                loginButton.disabled = false;
+                buttonText.textContent = 'Ingresar al Sistema';
+                errorMessage.style.display = 'none';
+            } else {
+                pintar();
+            }
+        }, 1000);
+    }
+
     form?.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -672,6 +710,7 @@ const PUBLIC_API_URL = import.meta.env.PUBLIC_API_URL;
             // CORRECCIÓN: Agregar /api al endpoint
             const response = await fetch(`${PUBLIC_API_URL}/login`, {
                 method: 'POST',
+                credentials: 'include',
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json', // Importante para que Laravel devuelva JSON
@@ -689,18 +728,27 @@ const PUBLIC_API_URL = import.meta.env.PUBLIC_API_URL;
 
             if (response.ok && result.success) {
                 sessionStorage.setItem('usuario', JSON.stringify(result.data));
-                
+                localStorage.setItem('ultima_actividad', Date.now().toString());
+
                 // Animación de éxito
                 loginButton.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
                 buttonText.textContent = '✓ Acceso concedido';
                 buttonText.style.display = 'block';
                 spinner.style.display = 'none';
-                
+
                 setTimeout(() => {
                     window.location.href = '/dashboard';
                 }, 1000);
+            } else if (response.status === 429) {
+                // Cuenta bloqueada temporalmente
+                errorMessage.textContent = '⚠ ' + result.message;
+                errorMessage.style.display = 'block';
+                iniciarBloqueo(result.retry_after || 900);
+                return;
             } else {
-                throw new Error(result.message || 'Credenciales incorrectas');
+                // Los errores 422 de Laravel traen el texto en errors.usuario
+                const msg = result.errors?.usuario?.[0] || result.message || 'Credenciales incorrectas';
+                throw new Error(msg);
             }
         } catch (error) {
             console.error('Error completo:', error);
