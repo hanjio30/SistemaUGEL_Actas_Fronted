@@ -15,6 +15,7 @@ const FERIADOS_FIJOS = [
   '08-30', // Santa Rosa de Lima
   '10-08', // Combate de Angamos
   '11-01', // Todos los Santos
+  '11-10', //prueba
   '12-08', // Inmaculada Concepción
   '12-09', // Batalla de Ayacucho
   '12-25'  // Navidad
@@ -22,7 +23,7 @@ const FERIADOS_FIJOS = [
 
 // Días no laborables o feriados extra decretados por el gobierno (YYYY-MM-DD)
 const FERIADOS_EXTRA = [
-  // '2026-12-24',
+    '2026-11-12'
   // '2026-12-31',
 ];
 
