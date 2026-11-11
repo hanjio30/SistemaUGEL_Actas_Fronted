@@ -1,5 +1,6 @@
 /** @jsxImportSource preact */
 import { useState, useEffect } from 'preact/hooks';
+import { contarDiasHabiles } from '../../../utils/diasHabiles';
 
 export default function EntregaModule() {
   const [searchValue, setSearchValue] = useState('');
@@ -113,21 +114,8 @@ export default function EntregaModule() {
   };
 
   const calcularTiempoAtencion = () => {
-    if (!expediente || !expediente.fecha_recepcion) return 0;
-    
-    // Extraer solo la parte de la fecha (YYYY-MM-DD) ignorando la hora
-    const fechaStr = expediente.fecha_recepcion.split('T')[0];
-    const [year, month, day] = fechaStr.split('-').map(Number);
-    
-    // Crear fecha sin problemas de zona horaria
-    const fechaRecepcion = new Date(year, month - 1, day);
-    
-    // Obtener fecha actual sin hora
-    const fechaActual = new Date();
-    fechaActual.setHours(0, 0, 0, 0);
-    
-    const diferencia = Math.floor((fechaActual - fechaRecepcion) / (1000 * 60 * 60 * 24));
-    return diferencia;
+  if (!expediente || !expediente.fecha_recepcion) return 0;
+  return contarDiasHabiles(expediente.fecha_recepcion);
   };
 
   const validarDNI = (dni) => {
@@ -427,7 +415,9 @@ export default function EntregaModule() {
                 </div>
                 <div>
                   <p style={{ margin: '0 0 3px 0', color: '#6b7280', fontSize: '9px', fontWeight: '600' }}>TIEMPO DE ATENCIÓN</p>
-                  <p style={{ margin: '0', color: '#10b981', fontSize: '14px', fontWeight: 'bold' }}>{voucherData.tiempoAtencion} días</p>
+                  <p style={{ margin: '0', color: voucherData.tiempoAtencion > 10 ? '#dc2626' : '#10b981', fontSize: '14px', fontWeight: 'bold' }}>
+                    {voucherData.tiempoAtencion} días hábiles
+                  </p>
                 </div>
               </div>
 
@@ -1038,7 +1028,7 @@ export default function EntregaModule() {
                 onMouseOver={(e) => e.target.style.backgroundColor = '#4b5563'}
                 onMouseOut={(e) => e.target.style.backgroundColor = '#6b7280'}
               >
-                ❌ Cancelar
+                 Cancelar
               </button>
               <button
                 onClick={registrarEntrega}
@@ -1058,7 +1048,7 @@ export default function EntregaModule() {
                 onMouseOver={(e) => !loading && (e.target.style.backgroundColor = '#059669')}
                 onMouseOut={(e) => !loading && (e.target.style.backgroundColor = '#10b981')}
               >
-                {loading ? '⏳ Procesando...' : '✅ REGISTRAR ENTREGA Y GENERAR CARGO'}
+                {loading ? '⏳ Procesando...' : ' REGISTRAR ENTREGA Y GENERAR CARGO'}
               </button>
             </div>
           </>
