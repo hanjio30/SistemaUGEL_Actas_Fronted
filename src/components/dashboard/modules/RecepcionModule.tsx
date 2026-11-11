@@ -2,6 +2,73 @@
 import { useState, useEffect } from 'preact/hooks';
 let solicitante;
 
+// Feriados fijos del Perú (MM-DD)
+const FERIADOS_FIJOS = [
+  '01-01', // Año Nuevo
+  '05-01', // Día del Trabajo
+  '06-07', // Día de la Bandera / Batalla de Arica
+  '06-29', // San Pedro y San Pablo
+  '07-23', // Día de la Fuerza Aérea
+  '07-28', // Fiestas Patrias
+  '07-29', // Fiestas Patrias
+  '08-06', // Batalla de Junín
+  '08-30', // Santa Rosa de Lima
+  '10-08', // Combate de Angamos
+  '11-01', // Todos los Santos
+  '12-08', // Inmaculada Concepción
+  '12-09', // Batalla de Ayacucho
+  '12-25'  // Navidad
+];
+
+// Días no laborables o feriados extra decretados por el gobierno (YYYY-MM-DD)
+const FERIADOS_EXTRA = [
+  // '2026-12-24',
+  // '2026-12-31',
+];
+
+// Domingo de Pascua (algoritmo de Meeus/Jones/Butcher)
+const calcularPascua = (año) => {
+  const a = año % 19;
+  const b = Math.floor(año / 100);
+  const c = año % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31);
+  const dia = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(año, mes - 1, dia);
+};
+
+const aClave = (fecha) => {
+  const y = fecha.getFullYear();
+  const m = String(fecha.getMonth() + 1).padStart(2, '0');
+  const d = String(fecha.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+const esFeriado = (fecha) => {
+  const clave = aClave(fecha);
+  const mmdd = clave.slice(5);
+
+  if (FERIADOS_FIJOS.includes(mmdd)) return true;
+  if (FERIADOS_EXTRA.includes(clave)) return true;
+
+  // Jueves y Viernes Santo (móviles)
+  const pascua = calcularPascua(fecha.getFullYear());
+  const juevesSanto = new Date(pascua);
+  juevesSanto.setDate(pascua.getDate() - 3);
+  const viernesSanto = new Date(pascua);
+  viernesSanto.setDate(pascua.getDate() - 2);
+
+  return clave === aClave(juevesSanto) || clave === aClave(viernesSanto);
+};
+
 export default function RecepcionModule() {
   // Estados principales
   const [tipoSolicitante, setTipoSolicitante] = useState('Natural');
@@ -279,7 +346,7 @@ export default function RecepcionModule() {
       const expediente = await expedienteResponse.json();
 
       // Calcular fecha límite (10 días hábiles)
-      const fechaLimite = calcularFechaLimite(new Date(fechaRecepcion), 10);
+      const fechaLimite = calcularFechaLimite(fechaRecepcion, 10);
 
       setExpedienteCreado({
         ...expediente,
@@ -299,20 +366,24 @@ export default function RecepcionModule() {
     }
   };
 
-  const calcularFechaLimite = (fechaInicio, diasHabiles) => {
-    let fecha = new Date(fechaInicio);
-    let diasAgregados = 0;
+  const calcularFechaLimite = (fechaInicioStr, diasHabiles) => {
+  // Parsear como fecha LOCAL (evita el desfase UTC)
+  const [y, m, d] = fechaInicioStr.split('-').map(Number);
+  let fecha = new Date(y, m - 1, d);
+  let diasAgregados = 0;
 
-    while (diasAgregados < diasHabiles) {
-      fecha.setDate(fecha.getDate() + 1);
-      const diaSemana = fecha.getDay();
-      if (diaSemana !== 0 && diaSemana !== 6) {
-        diasAgregados++;
-      }
+  while (diasAgregados < diasHabiles) {
+    fecha.setDate(fecha.getDate() + 1);
+    const diaSemana = fecha.getDay();
+    const esFinDeSemana = diaSemana === 0 || diaSemana === 6;
+
+    if (!esFinDeSemana && !esFeriado(fecha)) {
+      diasAgregados++;
     }
+  }
 
-    return fecha.toLocaleDateString('es-PE');
-  };
+  return fecha.toLocaleDateString('es-PE');
+};
 
   const limpiarFormulario = () => {
     setDniRuc('');
