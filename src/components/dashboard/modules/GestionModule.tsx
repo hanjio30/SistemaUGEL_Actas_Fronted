@@ -1,6 +1,8 @@
 /** @jsxImportSource preact */
 import { useState, useEffect } from 'preact/hooks';
 
+import { contarDiasHabiles } from '../../../utils/diasHabiles';
+
 export default function GestionModule() {
   const [expedientes, setExpedientes] = useState([]);
   const [expedienteSeleccionado, setExpedienteSeleccionado] = useState(null);
@@ -109,21 +111,7 @@ export default function GestionModule() {
   };
 
   const calcularDiasTranscurridos = (fechaRecepcion) => {
-    if (!fechaRecepcion) return 0;
-    
-    // Extraer solo la parte de la fecha (YYYY-MM-DD) ignorando la hora
-    const fechaStr = fechaRecepcion.split('T')[0];
-    const [year, month, day] = fechaStr.split('-').map(Number);
-    
-    // Crear fecha sin problemas de zona horaria
-    const fecha = new Date(year, month - 1, day);
-    
-    // Obtener fecha actual sin hora
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
-    
-    const diferencia = Math.floor((hoy - fecha) / (1000 * 60 * 60 * 24));
-    return diferencia;
+  return contarDiasHabiles(fechaRecepcion);
   };
 
   const filtrarPorFecha = (fechaRecepcion) => {
