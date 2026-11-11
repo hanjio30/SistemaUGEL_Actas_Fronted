@@ -15,7 +15,7 @@ const FERIADOS_FIJOS = [
   '08-30', // Santa Rosa de Lima
   '10-08', // Combate de Angamos
   '11-01', // Todos los Santos
-  '11-10', //prueba
+  '11-13', //prueba
   '12-08', // Inmaculada Concepción
   '12-09', // Batalla de Ayacucho
   '12-25'  // Navidad
