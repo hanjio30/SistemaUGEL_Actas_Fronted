@@ -215,12 +215,16 @@ export default function EntregaModule() {
       
       // Enviar el nombre del usuario actual automáticamente
       formData.append('entregado_por', nombreUsuario);
-      
+      formData.append('usuario', nombreUsuario); 
+
       console.log('📤 Enviando entrega con funcionario:', nombreUsuario);
 
       // Registrar entrega en la nueva tabla
       const response = await fetch(`${API_URL}/entregas`, {
         method: 'POST',
+        headers: {
+          'X-Usuario': nombreUsuario        // <- NUEVO
+        },
         body: formData,
         credentials: 'include'
       });
