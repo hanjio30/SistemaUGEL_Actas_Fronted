@@ -327,17 +327,19 @@ export default function RecepcionModule() {
 }
 
       // 2. Crear expediente
+      const usuarioData = JSON.parse(localStorage.getItem('usuario') || '{}');
+      const nombreUsuario = usuarioData.usuario || usuarioData.nombre || '';
+      console.log('Usuario que se envía:', nombreUsuario); // temporal
+
       const expedienteData = {
         solicitante_id: solicitante.id_solicitante,
         asunto_id: parseInt(asuntoId),
         fecha_recepcion: fechaRecepcion,
         receptor: receptorDocumento,
         nombre_documento: nombreDocumento || 'FUT',
-        tipo_documento: tipoDocumento
+        tipo_documento: tipoDocumento,
+        usuario: nombreUsuario
       };
-      
-      const usuarioData = JSON.parse(localStorage.getItem('usuario') || '{}');
-      const nombreUsuario = usuarioData.usuario || usuarioData.nombre || '';
 
       const expedienteResponse = await fetch(`${API_URL}/expedientes`, {
         method: 'POST',
