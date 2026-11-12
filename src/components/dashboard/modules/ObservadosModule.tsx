@@ -121,8 +121,18 @@ export default function ObservadosModule() {
           const dia = String(hoy.getDate()).padStart(2, '0');
           const fechaHoy = `${año}-${mes}-${dia}`; // Formato: YYYY-MM-DD en zona local
 
-      const usuarioData = JSON.parse(localStorage.getItem('usuario') || '{}');
-      const nombreUsuario = usuarioData.usuario || usuarioData.nombre || '';
+      let nombreUsuario = '';
+      try {
+        const usuarioData = JSON.parse(sessionStorage.getItem('usuario') || '{}');
+        nombreUsuario = usuarioData.usuario || usuarioData.nombre || '';
+      } catch (e) {
+        nombreUsuario = '';
+      }
+
+      if (!nombreUsuario) {
+        showNotification('No se pudo identificar el usuario. Inicie sesión nuevamente.', 'error');
+        return;
+      }
       
       const response = await fetch(`${API_BASE_URL}/expedientes/${expedienteACorregir.id_expediente}`, {
         method: 'PUT',
@@ -134,7 +144,8 @@ export default function ObservadosModule() {
         body: JSON.stringify({
           estado: 'RECEPCIONADO',
           fecha_recepcion: fechaHoy, // 🔄 Reinicia la fecha para que días = 0
-          observaciones: expedienteACorregir.observaciones
+          observaciones: expedienteACorregir.observaciones,
+          usuario: nombreUsuario
         })
       });
 
