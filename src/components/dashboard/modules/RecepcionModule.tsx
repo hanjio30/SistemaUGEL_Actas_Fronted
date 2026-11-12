@@ -335,10 +335,16 @@ export default function RecepcionModule() {
         nombre_documento: nombreDocumento || 'FUT',
         tipo_documento: tipoDocumento
       };
+      
+      const usuarioData = JSON.parse(localStorage.getItem('usuario') || '{}');
+      const nombreUsuario = usuarioData.usuario || usuarioData.nombre || '';
 
       const expedienteResponse = await fetch(`${API_URL}/expedientes`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Usuario': nombreUsuario
+        },
         body: JSON.stringify(expedienteData)
       });
 

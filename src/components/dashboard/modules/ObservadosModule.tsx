@@ -121,11 +121,15 @@ export default function ObservadosModule() {
           const dia = String(hoy.getDate()).padStart(2, '0');
           const fechaHoy = `${año}-${mes}-${dia}`; // Formato: YYYY-MM-DD en zona local
 
+      const usuarioData = JSON.parse(localStorage.getItem('usuario') || '{}');
+      const nombreUsuario = usuarioData.usuario || usuarioData.nombre || '';
+      
       const response = await fetch(`${API_BASE_URL}/expedientes/${expedienteACorregir.id_expediente}`, {
         method: 'PUT',
         headers: {
           'Accept': 'application/json',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Usuario': nombreUsuario
         },
         body: JSON.stringify({
           estado: 'RECEPCIONADO',
@@ -163,10 +167,7 @@ export default function ObservadosModule() {
     setSendingNotifications(true);
     
     try {
-      // Aquí puedes implementar el envío real de notificaciones
-      // Por ejemplo, llamar a un endpoint de tu API que envíe emails o notificaciones push
-      
-      // Simulación de envío (reemplaza con tu lógica real)
+    
       const response = await fetch(`${API_BASE_URL}/notificaciones/vencimientos`, {
         method: 'POST',
         headers: {
