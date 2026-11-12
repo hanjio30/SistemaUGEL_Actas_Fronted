@@ -2,1163 +2,562 @@
 import { useState, useEffect } from 'preact/hooks';
 
 const API_URL = 'https://sistemaugel-actas-backend.onrender.com/api';
+const PLAZO = 10; // días hábiles de atención
+
+const COLOR_ESTADO = {
+  'RECEPCIONADO': '#6366f1',
+  'EN PROCESO': '#d99a0b',
+  'OBSERVADO': '#c62d3b',
+  'LISTO PARA ENTREGA': '#0ea5d7',
+  'ENTREGADO': '#13906b',
+};
+
+const REPORTES = [
+  { id: 'expedientes-periodo', titulo: 'Expedientes por período', desc: 'Volumen recibido, atendido y plazos', color: '#083f8f', fechas: true, excel: 'expedientes' },
+  { id: 'estados-actuales', titulo: 'Estados actuales', desc: 'Dónde está cada expediente hoy', color: '#0ea5d7' },
+  { id: 'por-colaborador', titulo: 'Por colaborador', desc: 'Atenciones realizadas por persona', color: '#13906b', fechas: true, excel: 'colaboradores' },
+  { id: 'tiempos-atencion', titulo: 'Tiempos de atención', desc: 'Cumplimiento del plazo por asunto', color: '#6366f1', fechas: true },
+  { id: 'expedientes-observados', titulo: 'Observados', desc: 'Expedientes detenidos por observación', color: '#c62d3b', excel: 'observados' },
+  { id: 'entregas', titulo: 'Entregas', desc: 'Documentos entregados y a quién', color: '#d99a0b', fechas: true, excel: 'entregas' },
+];
+
+const ESTADOS = ['RECEPCIONADO', 'EN PROCESO', 'OBSERVADO', 'LISTO PARA ENTREGA', 'ENTREGADO'];
+
+const aISO = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const CSS = `
+.rp{--ink:#14213d;--mute:#5b6577;--line:#d9dee7;--paper:#eef1f6;--surf:#fff;--brand:#083f8f;--sky:#0ea5d7;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--paper);
+  min-height:100vh;padding:28px;font-variant-numeric:tabular-nums}
+.rp *{box-sizing:border-box}
+.rp-top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px;
+  padding-bottom:18px;border-bottom:3px solid var(--brand)}
+.rp-top h1{margin:0;font-size:28px;letter-spacing:-.02em;font-weight:800;color:var(--brand)}
+.rp-top p{margin:6px 0 0;color:var(--mute);font-size:14px;max-width:60ch}
+.rp-user{font-size:13px;color:var(--mute)}
+.rp-grid{display:grid;grid-template-columns:270px 1fr;gap:24px;align-items:start}
+.rp-rail{background:var(--surf);border:1px solid var(--line);border-radius:6px;position:sticky;top:16px;overflow:hidden}
+.rp-rail button{all:unset;box-sizing:border-box;display:block;width:100%;padding:14px 16px 14px 18px;cursor:pointer;
+  border-left:5px solid transparent;border-bottom:1px solid var(--line)}
+.rp-rail button:last-child{border-bottom:0}
+.rp-rail button:hover{background:#f5f8fd}
+.rp-rail button:focus-visible{outline:2px solid var(--sky);outline-offset:-2px}
+.rp-rail b{display:block;font-size:15px;font-weight:700}
+.rp-rail span{display:block;font-size:12.5px;color:var(--mute);margin-top:3px}
+.rp-rail button[aria-pressed=true]{background:#eaf1fb;border-left-color:var(--c)}
+.rp-main{min-width:0}
+.rp-bar{background:var(--surf);border:1px solid var(--line);border-radius:6px;padding:16px 18px;margin-bottom:18px;
+  display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
+.rp-bar label{display:grid;gap:5px;font-size:12.5px;font-weight:600;color:var(--mute)}
+.rp-bar input,.rp-bar select{padding:9px 11px;border:1px solid #b9c2d1;border-radius:4px;font:inherit;font-size:14px;color:var(--ink);background:#fff;min-width:150px}
+.rp-bar input:focus,.rp-bar select:focus{outline:2px solid var(--sky);border-color:var(--sky)}
+.rp-sp{flex:1}
+.rp-btn{padding:10px 18px;border:0;border-radius:4px;font:inherit;font-size:14px;font-weight:700;color:#fff;background:var(--brand);cursor:pointer}
+.rp-btn.alt{background:#fff;color:var(--brand);border:1.5px solid var(--brand)}
+.rp-btn:disabled{opacity:.55;cursor:wait}
+.rp-btn:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+.rp-err{background:#fdecee;border-left:5px solid #c62d3b;padding:12px 16px;border-radius:4px;margin-bottom:18px;font-size:14px;color:#8a1c27}
+.rp-empty{background:var(--surf);border:1px dashed #b9c2d1;border-radius:6px;padding:48px 24px;text-align:center;color:var(--mute)}
+.rp-empty b{display:block;color:var(--ink);font-size:17px;margin-bottom:6px}
+.rp-panel{background:var(--surf);border:1px solid var(--line);border-radius:6px;margin-bottom:18px;overflow:hidden}
+.rp-panel>header{display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-bottom:1px solid var(--line);background:#f8fafc}
+.rp-panel h3{margin:0;font-size:16px;font-weight:700}
+.rp-panel .body{padding:20px}
+.rp-stats{display:flex;flex-wrap:wrap}
+.rp-stat{flex:1 1 130px;padding:4px 20px;border-left:1px solid var(--line)}
+.rp-stat:first-child{border-left:0;padding-left:0}
+.rp-stat strong{display:block;font-size:34px;font-weight:800;letter-spacing:-.03em;line-height:1.1}
+.rp-stat span{font-size:12.5px;color:var(--mute)}
+.rp-ribbon{display:flex;height:38px;border-radius:4px;overflow:hidden;margin:18px 0 10px;background:#e3e8f0}
+.rp-ribbon i{display:flex;align-items:center;justify-content:center;color:#fff;font:700 12px ui-sans-serif,system-ui;font-style:normal;min-width:2px}
+.rp-legend{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:13px;color:var(--mute)}
+.rp-legend s{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;text-decoration:none}
+.rp-row{display:grid;grid-template-columns:minmax(120px,240px) 1fr 90px;gap:14px;align-items:center;padding:7px 0;font-size:14px}
+.rp-row .t{height:8px;background:#e3e8f0;border-radius:4px;overflow:hidden}
+.rp-row .t i{display:block;height:100%;background:var(--brand)}
+.rp-row em{font-style:normal;text-align:right;font-weight:700}
+.rp-tw{overflow-x:auto}
+.rp table{width:100%;border-collapse:collapse;font-size:14px}
+.rp th{padding:11px 16px;text-align:left;font-size:12.5px;font-weight:700;color:var(--mute);background:#f8fafc;border-bottom:2px solid var(--line);white-space:nowrap}
+.rp td{padding:11px 16px;border-bottom:1px solid #e8ecf2;vertical-align:middle}
+.rp tr:last-child td{border-bottom:0}
+.rp .c{text-align:center}
+.rp .r{text-align:right}
+.rp-tag{display:inline-block;padding:3px 9px;border-radius:3px;font-size:12px;font-weight:700;color:#fff;white-space:nowrap}
+.rp-meter{display:inline-flex;align-items:center;gap:8px}
+.rp-meter span{display:inline-flex;gap:2px}
+.rp-meter span i{width:7px;height:16px;border-radius:1px;background:#dfe4ec}
+.rp-meter b{min-width:34px;text-align:right;font-size:13px}
+.rp-note{padding:14px 20px;background:#fff6e0;border-top:1px solid #f0dca6;font-size:14px}
+.rp-spin{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-right-color:transparent;border-radius:50%;
+  animation:rpspin .7s linear infinite;vertical-align:-2px;margin-right:8px}
+@keyframes rpspin{to{transform:rotate(360deg)}}
+@media(max-width:900px){.rp{padding:16px}.rp-grid{grid-template-columns:1fr}.rp-rail{position:static}.rp-row{grid-template-columns:1fr 70px}.rp-row .t{grid-column:1/-1;order:3}}
+@media(prefers-reduced-motion:reduce){.rp-spin{animation:none}}
+`;
+
+/* ---------- piezas reutilizables ---------- */
+
+function Panel({ titulo, extra, children, flush }) {
+  return (
+    <section class="rp-panel">
+      <header><h3>{titulo}</h3>{extra}</header>
+      {flush ? children : <div class="body">{children}</div>}
+    </section>
+  );
+}
+
+function Stats({ items }) {
+  return (
+    <div class="rp-stats">
+      {items.map(([etq, val, color]) => (
+        <div class="rp-stat" key={etq}>
+          <strong style={{ color: color || 'var(--ink)' }}>{val ?? 0}</strong>
+          <span>{etq}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Cinta({ items }) {
+  const total = items.reduce((s, i) => s + (i.valor || 0), 0);
+  return (
+    <div>
+      <div class="rp-ribbon" role="img" aria-label="Distribución">
+        {items.map((i) => i.valor > 0 && (
+          <i key={i.etq} style={{ width: `${(i.valor / total) * 100}%`, background: i.color }}>
+            {i.valor / total > 0.06 ? i.valor : ''}
+          </i>
+        ))}
+      </div>
+      <div class="rp-legend">
+        {items.map((i) => (
+          <span key={i.etq}><s style={{ background: i.color }} />{i.etq}: <b>{i.valor}</b></span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Medidor del plazo: 10 casillas = 10 días. Es la pieza que unifica todos los reportes.
+function Plazo({ dias = 0 }) {
+  const d = Number(dias) || 0;
+  const color = d >= PLAZO ? '#c62d3b' : d >= PLAZO - 2 ? '#d99a0b' : '#13906b';
+  return (
+    <div class="rp-meter" title={`${d} de ${PLAZO} días`}>
+      <span>
+        {Array.from({ length: PLAZO }, (_, k) => (
+          <i key={k} style={k < d ? { background: color } : null} />
+        ))}
+      </span>
+      <b style={{ color }}>{d} d</b>
+    </div>
+  );
+}
+
+function Estado({ valor }) {
+  return <span class="rp-tag" style={{ background: COLOR_ESTADO[valor] || '#6b7280' }}>{valor}</span>;
+}
+
+function Barras({ filas, color }) {
+  const max = Math.max(1, ...filas.map((f) => f.valor));
+  return filas.map((f) => (
+    <div class="rp-row" key={f.etq}>
+      <span>{f.etq}</span>
+      <div class="t"><i style={{ width: `${(f.valor / max) * 100}%`, background: color }} /></div>
+      <em>{f.valor}{f.extra ? <small style={{ color: 'var(--mute)', fontWeight: 500 }}> {f.extra}</small> : null}</em>
+    </div>
+  ));
+}
+
+function Tabla({ cols, filas, vacio = 'Sin registros para mostrar.' }) {
+  if (!filas.length) return <div class="rp-empty" style={{ border: 0 }}>{vacio}</div>;
+  return (
+    <div class="rp-tw">
+      <table>
+        <thead><tr>{cols.map((c) => <th key={c.h} class={c.a}>{c.h}</th>)}</tr></thead>
+        <tbody>
+          {filas.map((f, i) => (
+            <tr key={i}>{cols.map((c) => <td key={c.h} class={c.a}>{c.v(f)}</td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+const fecha = (f) => (f ? new Date(f).toLocaleDateString('es-PE') : '—');
+
+/* ---------- reportes ---------- */
+
+function RepPeriodo({ datos }) {
+  const r = datos.resumen;
+  const otros = Math.max(0, r.total_recibidos - r.total_atendidos - r.total_observados - r.total_en_proceso);
+  const exp = (datos.expedientes || []).slice(0, 50);
+  return (
+    <>
+      <Panel titulo="Resumen del período">
+        <Stats items={[
+          ['Recibidos', r.total_recibidos, 'var(--brand)'],
+          ['Atendidos', r.total_atendidos, '#13906b'],
+          ['En proceso', r.total_en_proceso, '#d99a0b'],
+          ['Observados', r.total_observados, '#c62d3b'],
+          ['Días promedio', r.tiempo_promedio_dias],
+          ['Dentro del plazo', `${r.porcentaje_dentro_plazo}%`, '#13906b'],
+        ]} />
+        <Cinta items={[
+          { etq: 'Atendidos', valor: r.total_atendidos, color: '#13906b' },
+          { etq: 'En proceso', valor: r.total_en_proceso, color: '#d99a0b' },
+          { etq: 'Observados', valor: r.total_observados, color: '#c62d3b' },
+          { etq: 'Recepcionados', valor: otros, color: '#6366f1' },
+        ]} />
+      </Panel>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 18 }}>
+        {datos.top_asuntos?.length > 0 && (
+          <Panel titulo="Asuntos más solicitados">
+            <Barras color="var(--sky)" filas={datos.top_asuntos.map((a) => ({ etq: a.asunto, valor: a.cantidad, extra: `${a.porcentaje}%` }))} />
+          </Panel>
+        )}
+        {datos.por_tipo_documento && Object.keys(datos.por_tipo_documento).length > 0 && (
+          <Panel titulo="Por tipo de documento">
+            <Barras color="var(--brand)" filas={Object.entries(datos.por_tipo_documento).map(([etq, valor]) => ({ etq, valor }))} />
+          </Panel>
+        )}
+      </div>
+
+      <Panel titulo="Expedientes del período" flush extra={<small>Primeros {exp.length} de {datos.expedientes?.length || 0}</small>}>
+        <Tabla filas={exp} cols={[
+          { h: 'N° Expediente', v: (e) => <b>{e.num_expediente}</b> },
+          { h: 'Solicitante', v: (e) => e.solicitante?.nombre_solicitante || '—' },
+          { h: 'Asunto', v: (e) => e.asunto?.nombre_asunto || '—' },
+          { h: 'Recepción', v: (e) => fecha(e.fecha_recepcion) },
+          { h: 'Estado', v: (e) => <Estado valor={e.estado} /> },
+        ]} />
+      </Panel>
+    </>
+  );
+}
+
+function RepEstados({ datos }) {
+  return (
+    <>
+      <Panel titulo="Expedientes por estado" extra={<small>{datos.total_expedientes} en total</small>}>
+        <Stats items={datos.por_estado.map((e) => [e.estado.toLowerCase().replace(/^./, (c) => c.toUpperCase()) + ` (${e.porcentaje}%)`, e.cantidad, COLOR_ESTADO[e.estado]])} />
+        <Cinta items={datos.por_estado.map((e) => ({ etq: e.estado, valor: e.cantidad, color: COLOR_ESTADO[e.estado] }))} />
+      </Panel>
+      <Panel titulo="Pendientes más antiguos" flush>
+        <Tabla vacio="No hay expedientes pendientes." filas={datos.expedientes_mas_antiguos || []} cols={[
+          { h: 'N° Expediente', v: (e) => <b>{e.num_expediente}</b> },
+          { h: 'Solicitante', v: (e) => e.solicitante },
+          { h: 'Asunto', v: (e) => e.asunto },
+          { h: 'Estado', v: (e) => <Estado valor={e.estado} /> },
+          { h: 'Plazo', v: (e) => <Plazo dias={e.dias_transcurridos} /> },
+        ]} />
+      </Panel>
+    </>
+  );
+}
+
+function RepColaborador({ datos }) {
+  const max = Math.max(1, ...datos.estadisticas.map((s) => s.total_atenciones));
+  return (
+    <>
+      <Panel titulo="Resumen">
+        <Stats items={[
+          ['Colaboradores', datos.total_usuarios, 'var(--brand)'],
+          ['Atenciones registradas', datos.total_atenciones, '#13906b'],
+        ]} />
+      </Panel>
+      <Panel titulo="Atenciones por colaborador" flush>
+        <Tabla filas={datos.estadisticas} cols={[
+          { h: 'Colaborador', v: (s) => <><b>{s.nombre_completo}</b><div style={{ fontSize: 12, color: 'var(--mute)' }}>{s.usuario}</div></> },
+          { h: 'Total', v: (s) => (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 150 }}>
+              <div style={{ flex: 1, height: 8, background: '#e3e8f0', borderRadius: 4 }}>
+                <div style={{ width: `${(s.total_atenciones / max) * 100}%`, height: '100%', background: 'var(--brand)', borderRadius: 4 }} />
+              </div>
+              <b>{s.total_atenciones}</b>
+            </div>
+          ) },
+          { h: 'En proceso', a: 'c', v: (s) => s.en_proceso },
+          { h: 'Observados', a: 'c', v: (s) => <span style={{ color: '#c62d3b', fontWeight: 700 }}>{s.observados}</span> },
+          { h: 'Listos para entrega', a: 'c', v: (s) => <span style={{ color: '#13906b', fontWeight: 700 }}>{s.listos_entrega}</span> },
+        ]} />
+      </Panel>
+    </>
+  );
+}
+
+function RepTiempos({ datos }) {
+  const cb = datos.cuellos_botella || [];
+  return (
+    <>
+      <Panel titulo="Resumen">
+        <Stats items={[
+          ['Entregas analizadas', datos.total_entregas, 'var(--brand)'],
+          ['Días promedio general', datos.promedio_general || 0],
+          ['Asuntos fuera de meta', cb.length, cb.length ? '#c62d3b' : '#13906b'],
+        ]} />
+      </Panel>
+      <Panel titulo="Tiempo de atención por asunto" flush>
+        <Tabla filas={datos.tiempos_por_asunto} cols={[
+          { h: 'Asunto', v: (i) => <b>{i.asunto}</b> },
+          { h: 'Entregas', a: 'c', v: (i) => i.total_entregas },
+          { h: 'Promedio', a: 'c', v: (i) => `${i.promedio_dias} d` },
+          { h: 'Mín / Máx', a: 'c', v: (i) => `${i.minimo_dias} / ${i.maximo_dias} d` },
+          { h: `Dentro de ${PLAZO} días`, v: (i) => (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 150 }}>
+              <div style={{ flex: 1, height: 8, background: '#e3e8f0', borderRadius: 4 }}>
+                <div style={{ width: `${i.porcentaje_dentro_plazo}%`, height: '100%', borderRadius: 4, background: i.porcentaje_dentro_plazo >= 80 ? '#13906b' : '#c62d3b' }} />
+              </div>
+              <b>{i.porcentaje_dentro_plazo}%</b>
+            </div>
+          ) },
+        ]} />
+        {cb.length > 0 && (
+          <div class="rp-note">
+            <b>Requieren atención (menos del 80% dentro del plazo): </b>
+            {cb.map((i) => i.asunto).join(', ')}.
+          </div>
+        )}
+      </Panel>
+    </>
+  );
+}
+
+function RepObservados({ datos }) {
+  const e = datos.estadisticas;
+  return (
+    <>
+      <Panel titulo="Resumen">
+        <Stats items={[
+          ['Observados', e.total, 'var(--brand)'],
+          ['Urgencia alta (10+ días)', e.urgencia_alta, '#c62d3b'],
+          ['Urgencia media (8–9 días)', e.urgencia_media, '#d99a0b'],
+          ['Días promedio', e.promedio_dias],
+        ]} />
+      </Panel>
+      <Panel titulo="Detalle de observaciones" flush>
+        <Tabla vacio="No hay expedientes observados." filas={datos.expedientes} cols={[
+          { h: 'N° Expediente', v: (x) => <b>{x.num_expediente}</b> },
+          { h: 'Solicitante', v: (x) => x.solicitante },
+          { h: 'Asunto', v: (x) => x.asunto },
+          { h: 'Plazo', v: (x) => <Plazo dias={x.dias_transcurridos} /> },
+          { h: 'Observación', v: (x) => <span style={{ color: 'var(--mute)' }}>{x.observaciones || 'Sin observaciones'}</span> },
+        ]} />
+      </Panel>
+    </>
+  );
+}
+
+function RepEntregas({ datos }) {
+  const s = datos.estadisticas || {};
+  const lista = Array.isArray(datos.entregas) ? datos.entregas : [];
+  return (
+    <>
+      <Panel titulo="Resumen de entregas">
+        <Stats items={[
+          ['Total', s.total_entregas, 'var(--brand)'],
+          ['Recoge el titular', s.entrega_titular, '#13906b'],
+          ['Recoge un tercero', s.entrega_tercero, '#d99a0b'],
+          ['Días promedio', s.tiempo_promedio],
+        ]} />
+        <Cinta items={[
+          { etq: 'Titular', valor: s.entrega_titular || 0, color: '#13906b' },
+          { etq: 'Tercero', valor: s.entrega_tercero || 0, color: '#d99a0b' },
+        ]} />
+      </Panel>
+      <Panel titulo="Detalle" flush extra={<small>Primeras {Math.min(50, lista.length)} de {lista.length}</small>}>
+        <Tabla vacio="No hay entregas en el período seleccionado." filas={lista.slice(0, 50)} cols={[
+          { h: 'N° Expediente', v: (e) => <b>{e.expediente?.num_expediente || '—'}</b> },
+          { h: 'Solicitante', v: (e) => e.expediente?.solicitante?.nombre_solicitante || '—' },
+          { h: 'Recogió', v: (e) => <span class="rp-tag" style={{ background: e.tipo_recogida === 'titular' ? '#13906b' : '#d99a0b' }}>{(e.tipo_recogida || '—').toUpperCase()}</span> },
+          { h: 'Fecha', v: (e) => fecha(e.fecha_entrega) },
+          { h: 'Atención', v: (e) => <Plazo dias={e.dias_atencion} /> },
+          { h: 'Entregado por', v: (e) => e.entregado_por || '—' },
+        ]} />
+      </Panel>
+    </>
+  );
+}
+
+const VISTAS = {
+  'expedientes-periodo': [RepPeriodo, (d) => d.resumen],
+  'estados-actuales': [RepEstados, (d) => Array.isArray(d.por_estado)],
+  'por-colaborador': [RepColaborador, (d) => Array.isArray(d.estadisticas)],
+  'tiempos-atencion': [RepTiempos, (d) => Array.isArray(d.tiempos_por_asunto)],
+  'expedientes-observados': [RepObservados, (d) => Array.isArray(d.expedientes) && d.estadisticas],
+  'entregas': [RepEntregas, (d) => d.estadisticas && Array.isArray(d.entregas)],
+};
+
+/* ---------- módulo principal ---------- */
 
 export default function ReportesModule({ usuario }) {
-  const [tipoReporte, setTipoReporte] = useState('');
+  const [tipo, setTipo] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  
-  // Estados para filtros
   const [fechaInicio, setFechaInicio] = useState('');
   const [fechaFin, setFechaFin] = useState('');
   const [documentoId, setDocumentoId] = useState('');
-  const [estadoFiltro, setEstadoFiltro] = useState('Todos');
+  const [estado, setEstado] = useState('Todos');
   const [usuarioFiltro, setUsuarioFiltro] = useState('');
-  
-  // Estados para datos
   const [documentos, setDocumentos] = useState([]);
-  const [datosReporte, setDatosReporte] = useState(null);
+  const [datos, setDatos] = useState(null);
 
-  // Cargar documentos al montar
   useEffect(() => {
-    cargarDocumentos();
-    establecerFechasDefault();
+    const hoy = new Date();
+    setFechaInicio(aISO(new Date(hoy.getFullYear(), hoy.getMonth(), 1)));
+    setFechaFin(aISO(hoy));
+    fetch(`${API_URL}/documentos`)
+      .then((r) => r.json())
+      .then(setDocumentos)
+      .catch((e) => console.error('Error al cargar documentos:', e));
   }, []);
 
-  const establecerFechasDefault = () => {
-  // ✅ CORRECCIÓN: Generar fechas locales sin desfase UTC
-  const hoy = new Date();
-  
-  // Fecha de inicio: primer día del mes actual
-  const primerDia = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
-  const añoInicio = primerDia.getFullYear();
-  const mesInicio = String(primerDia.getMonth() + 1).padStart(2, '0');
-  const diaInicio = String(primerDia.getDate()).padStart(2, '0');
-  const fechaInicioLocal = `${añoInicio}-${mesInicio}-${diaInicio}`;
-  
-  // Fecha fin: día actual
-  const añoFin = hoy.getFullYear();
-  const mesFin = String(hoy.getMonth() + 1).padStart(2, '0');
-  const diaFin = String(hoy.getDate()).padStart(2, '0');
-  const fechaFinLocal = `${añoFin}-${mesFin}-${diaFin}`;
-  
-  setFechaInicio(fechaInicioLocal);
-  setFechaFin(fechaFinLocal);
-};
+  const rep = REPORTES.find((r) => r.id === tipo);
 
-  const cargarDocumentos = async () => {
+  const elegir = (id) => { setTipo(id); setDatos(null); setError(null); };
+
+  const generar = async () => {
+    if (!tipo) return;
+    setLoading(true); setError(null); setDatos(null);
     try {
-      const res = await fetch(`${API_URL}/documentos`);
-      const data = await res.json();
-      console.log('📄 Documentos cargados desde API:', data);
-      setDocumentos(data);
-    } catch (err) {
-      console.error('❌ Error al cargar documentos:', err);
-    }
-  };
-
-  const generarReporte = async () => {
-    if (!tipoReporte) {
-      setError('Selecciona un tipo de reporte');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setDatosReporte(null);
-
-    try {
-      let url = '';
-      let params = new URLSearchParams();
-
-      switch (tipoReporte) {
-        case 'expedientes-periodo':
-          url = `${API_URL}/reportes/expedientes-periodo`;
-          params.append('fecha_inicio', fechaInicio);
-          params.append('fecha_fin', fechaFin);
-          if (documentoId) params.append('documento_id', documentoId);
-          if (estadoFiltro !== 'Todos') params.append('estado', estadoFiltro);
-          break;
-
-        case 'estados-actuales':
-          url = `${API_URL}/reportes/estados-actuales`;
-          break;
-
-        case 'por-colaborador':
-          url = `${API_URL}/reportes/por-colaborador`;
-          if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-          if (fechaFin) params.append('fecha_fin', fechaFin);
-          if (usuarioFiltro) params.append('usuario', usuarioFiltro);
-          break;
-
-        case 'tiempos-atencion':
-          url = `${API_URL}/reportes/tiempos-atencion`;
-          if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-          if (fechaFin) params.append('fecha_fin', fechaFin);
-          break;
-
-        case 'expedientes-observados':
-          url = `${API_URL}/reportes/expedientes-observados`;
-          break;
-
-        case 'entregas':
-          url = `${API_URL}/reportes/entregas`;
-          if (fechaInicio) params.append('fecha_inicio', fechaInicio);
-          if (fechaFin) params.append('fecha_fin', fechaFin);
-          break;
+      const p = new URLSearchParams();
+      if (rep.fechas) {
+        if (fechaInicio) p.append('fecha_inicio', fechaInicio);
+        if (fechaFin) p.append('fecha_fin', fechaFin);
       }
+      if (tipo === 'expedientes-periodo') {
+        if (documentoId) p.append('documento_id', documentoId);
+        if (estado !== 'Todos') p.append('estado', estado);
+      }
+      if (tipo === 'por-colaborador' && usuarioFiltro) p.append('usuario', usuarioFiltro);
 
-      const res = await fetch(`${url}?${params.toString()}`);
+      const res = await fetch(`${API_URL}/reportes/${tipo}?${p}`);
       if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Error al generar reporte');
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.message || 'No se pudo generar el reporte');
       }
-      
-      const data = await res.json();
-      console.log('📊 Datos del reporte recibidos:', data);
-      setDatosReporte(data);
-
-    } catch (err) {
-      setError(err.message);
-      console.error('❌ Error completo:', err);
+      setDatos(await res.json());
+    } catch (e) {
+      setError(e.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const exportarExcel = async () => {
-    if (!datosReporte) return;
-
+  const exportar = async () => {
+    if (!datos || !rep?.excel) return;
     setLoading(true);
     try {
-      let tipo = '';
-      let datos = [];
-
-      switch (tipoReporte) {
-        case 'expedientes-periodo':
-          tipo = 'expedientes';
-          datos = datosReporte.expedientes || [];
-          break;
-        case 'expedientes-observados':
-          tipo = 'observados';
-          datos = datosReporte.expedientes || [];
-          break;
-        case 'entregas':
-          tipo = 'entregas';
-          datos = datosReporte.entregas || [];
-          break;
-        case 'por-colaborador':
-          tipo = 'colaboradores';
-          datos = datosReporte.estadisticas || [];
-          break;
-        default:
-          throw new Error('Tipo de reporte no soportado para exportación');
-      }
-
+      const lista = { expedientes: datos.expedientes, observados: datos.expedientes, entregas: datos.entregas, colaboradores: datos.estadisticas }[rep.excel] || [];
       const res = await fetch(`${API_URL}/reportes/exportar-excel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tipo, datos })
+        body: JSON.stringify({ tipo: rep.excel, datos: lista }),
       });
-
-      if (!res.ok) throw new Error('Error al exportar');
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `reporte_${tipoReporte}_${new Date().getTime()}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-    } catch (err) {
-      setError('Error al exportar Excel: ' + err.message);
+      if (!res.ok) throw new Error('El servidor rechazó la exportación');
+      const url = URL.createObjectURL(await res.blob());
+      const a = Object.assign(document.createElement('a'), { href: url, download: `reporte_${tipo}_${aISO(new Date())}.xlsx` });
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError('Error al exportar Excel: ' + e.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const renderFiltros = () => {
-    const estiloLabel = {
-      display: 'block',
-      color: '#374151',
-      fontSize: '14px',
-      fontWeight: '600',
-      marginBottom: '8px'
-    };
+  const renderResultado = () => {
+    const [Vista, valido] = VISTAS[tipo];
+    return valido(datos)
+      ? <Vista datos={datos} />
+      : <div class="rp-err">El servidor respondió, pero sin los datos esperados para este reporte.</div>;
+  };
 
-    const estiloInput = {
-      width: '100%',
-      padding: '10px 14px',
-      border: '2px solid #e5e7eb',
-      borderRadius: '8px',
-      fontSize: '14px',
-      outline: 'none',
-      transition: 'border-color 0.2s'
-    };
+  return (
+    <div class="rp">
+      <style>{CSS}</style>
 
-    if (tipoReporte === 'expedientes-periodo') {
-      return (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px', marginTop: '24px' }}>
-          <div>
-            <label style={estiloLabel}>📅 Fecha Inicio</label>
-            <input 
-              type="date" 
-              value={fechaInicio}
-              onChange={(e) => setFechaInicio(e.target.value)}
-              style={estiloInput}
-            />
-          </div>
-          <div>
-            <label style={estiloLabel}>📅 Fecha Fin</label>
-            <input 
-              type="date" 
-              value={fechaFin}
-              onChange={(e) => setFechaFin(e.target.value)}
-              style={estiloInput}
-            />
-          </div>
-          <div>
-            <label style={estiloLabel}>📄 Tipo Documento</label>
-            <select 
-              value={documentoId}
-              onChange={(e) => setDocumentoId(e.target.value)}
-              style={estiloInput}
-            >
-              <option value="">Todos los documentos</option>
-              {documentos && documentos.length > 0 ? (
-                documentos.map(doc => (
-                  <option key={doc.id_documento} value={doc.id_documento}>
-                    {/* ✅ CORRECCIÓN: Usar nombre_tipo en lugar de nombre_documento */}
-                    {doc.nombre_tipo || doc.nombre_documento || `Documento ${doc.id_documento}`}
-                  </option>
-                ))
-              ) : (
-                <option value="" disabled>Cargando documentos...</option>
+      <div class="rp-top">
+        <div>
+          <h1>Reportes y estadísticas</h1>
+          <p>Seguimiento de expedientes, plazos de atención y entregas para la toma de decisiones.</p>
+        </div>
+        {usuario && <div class="rp-user">Sesión: <b>{usuario.nombre_completo || usuario.usuario || usuario.nombre}</b></div>}
+      </div>
+
+      <div class="rp-grid">
+        <nav class="rp-rail" aria-label="Tipos de reporte">
+          {REPORTES.map((r) => (
+            <button key={r.id} style={{ '--c': r.color }} aria-pressed={tipo === r.id} onClick={() => elegir(r.id)}>
+              <b>{r.titulo}</b>
+              <span>{r.desc}</span>
+            </button>
+          ))}
+        </nav>
+
+        <main class="rp-main">
+          {!rep ? (
+            <div class="rp-empty">
+              <b>Elige un reporte para comenzar</b>
+              Selecciona una opción de la lista, ajusta los filtros y genera el reporte.
+            </div>
+          ) : (
+            <>
+              <div class="rp-bar">
+                {rep.fechas && (
+                  <>
+                    <label>Desde<input type="date" value={fechaInicio} onInput={(e) => setFechaInicio(e.target.value)} /></label>
+                    <label>Hasta<input type="date" value={fechaFin} onInput={(e) => setFechaFin(e.target.value)} /></label>
+                  </>
+                )}
+                {tipo === 'expedientes-periodo' && (
+                  <>
+                    <label>Tipo de documento
+                      <select value={documentoId} onChange={(e) => setDocumentoId(e.target.value)}>
+                        <option value="">Todos</option>
+                        {documentos.map((d) => (
+                          <option key={d.id_documento} value={d.id_documento}>
+                            {d.nombre_tipo || d.nombre_documento || `Documento ${d.id_documento}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>Estado
+                      <select value={estado} onChange={(e) => setEstado(e.target.value)}>
+                        <option value="Todos">Todos</option>
+                        {ESTADOS.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </label>
+                  </>
+                )}
+                {tipo === 'por-colaborador' && (
+                  <label>Usuario
+                    <input type="text" placeholder="Nombre de usuario" value={usuarioFiltro} onInput={(e) => setUsuarioFiltro(e.target.value)} />
+                  </label>
+                )}
+                <div class="rp-sp" />
+                {datos && rep.excel && (
+                  <button class="rp-btn alt" onClick={exportar} disabled={loading}>Descargar Excel</button>
+                )}
+                <button class="rp-btn" onClick={generar} disabled={loading}>
+                  {loading && <span class="rp-spin" />}{loading ? 'Generando…' : 'Generar reporte'}
+                </button>
+              </div>
+
+              {error && <div class="rp-err" role="alert"><b>No se pudo completar la acción.</b> {error}</div>}
+              {datos && renderResultado()}
+              {!datos && !error && !loading && (
+                <div class="rp-empty"><b>{rep.titulo}</b>Ajusta los filtros y pulsa «Generar reporte».</div>
               )}
-            </select>
-          </div>
-          <div>
-            <label style={estiloLabel}>🔄 Estado</label>
-            <select 
-              value={estadoFiltro}
-              onChange={(e) => setEstadoFiltro(e.target.value)}
-              style={estiloInput}
-            >
-              <option value="Todos">Todos</option>
-              <option value="RECEPCIONADO">Recepcionado</option>
-              <option value="EN PROCESO">En Proceso</option>
-              <option value="OBSERVADO">Observado</option>
-              <option value="LISTO PARA ENTREGA">Listo para Entrega</option>
-              <option value="ENTREGADO">Entregado</option>
-            </select>
-          </div>
-        </div>
-      );
-    }
-
-    if (['por-colaborador', 'tiempos-atencion', 'entregas'].includes(tipoReporte)) {
-      return (
-        <div style={{ display: 'grid', gridTemplateColumns: tipoReporte === 'por-colaborador' ? '1fr 1fr 1fr' : '1fr 1fr', gap: '20px', marginTop: '24px' }}>
-          <div>
-            <label style={estiloLabel}>📅 Fecha Inicio</label>
-            <input 
-              type="date" 
-              value={fechaInicio}
-              onChange={(e) => setFechaInicio(e.target.value)}
-              style={estiloInput}
-            />
-          </div>
-          <div>
-            <label style={estiloLabel}>📅 Fecha Fin</label>
-            <input 
-              type="date" 
-              value={fechaFin}
-              onChange={(e) => setFechaFin(e.target.value)}
-              style={estiloInput}
-            />
-          </div>
-          {tipoReporte === 'por-colaborador' && (
-            <div>
-              <label style={estiloLabel}>👤 Usuario</label>
-              <input 
-                type="text" 
-                placeholder="Filtrar por usuario"
-                value={usuarioFiltro}
-                onChange={(e) => setUsuarioFiltro(e.target.value)}
-                style={estiloInput}
-              />
-            </div>
+            </>
           )}
-        </div>
-      );
-    }
-
-    return null;
-  };
-
-  const renderResultados = () => {
-    if (!datosReporte) return null;
-
-    // Validar que los datos existan antes de renderizar
-    try {
-      switch (tipoReporte) {
-        case 'expedientes-periodo':
-          if (!datosReporte.resumen) {
-            return <div style={{ padding: '20px', textAlign: 'center', color: '#dc2626' }}>
-              ⚠️ No hay datos de resumen disponibles
-            </div>;
-          }
-          return <ReporteExpedientesPeriodo datos={datosReporte} />;
-        
-        case 'estados-actuales':
-          if (!datosReporte.por_estado || !Array.isArray(datosReporte.por_estado)) {
-            return <div style={{ padding: '20px', textAlign: 'center', color: '#dc2626' }}>
-              ⚠️ No hay datos de estados disponibles
-            </div>;
-          }
-          return <ReporteEstadosActuales datos={datosReporte} />;
-        
-        case 'por-colaborador':
-          if (!datosReporte.estadisticas || !Array.isArray(datosReporte.estadisticas)) {
-            return <div style={{ padding: '20px', textAlign: 'center', color: '#dc2626' }}>
-              ⚠️ No hay datos de colaboradores disponibles
-            </div>;
-          }
-          return <ReportePorColaborador datos={datosReporte} />;
-        
-        case 'tiempos-atencion':
-          if (!datosReporte.tiempos_por_asunto || !Array.isArray(datosReporte.tiempos_por_asunto)) {
-            return <div style={{ padding: '20px', textAlign: 'center', color: '#dc2626' }}>
-              ⚠️ No hay datos de tiempos disponibles
-            </div>;
-          }
-          return <ReporteTiemposAtencion datos={datosReporte} />;
-        
-        case 'expedientes-observados':
-          if (!datosReporte.expedientes || !Array.isArray(datosReporte.expedientes)) {
-            return <div style={{ padding: '20px', textAlign: 'center', color: '#dc2626' }}>
-              ⚠️ No hay expedientes observados disponibles
-            </div>;
-          }
-          return <ReporteExpedientesObservados datos={datosReporte} />;
-        
-        case 'entregas':
-          if (!datosReporte.estadisticas || !datosReporte.entregas || !Array.isArray(datosReporte.entregas)) {
-            return <div style={{ padding: '20px', textAlign: 'center', color: '#dc2626' }}>
-              ⚠️ No hay datos de entregas disponibles
-            </div>;
-          }
-          return <ReporteEntregas datos={datosReporte} />;
-        
-        default:
-          return null;
-      }
-    } catch (error) {
-      console.error('❌ Error al renderizar resultados:', error);
-      return <div style={{ padding: '20px', textAlign: 'center', color: '#dc2626' }}>
-        ⚠️ Error al mostrar los resultados: {error.message}
-      </div>;
-    }
-  };
-
-  const reportes = [
-    { id: 'expedientes-periodo', icono: '📈', titulo: 'Expedientes por Período', color: '#083f8f' },
-    { id: 'estados-actuales', icono: '📊', titulo: 'Estados Actuales', color: '#0ea5d7' },
-    { id: 'por-colaborador', icono: '👥', titulo: 'Por Colaborador', color: '#10b981' },
-    { id: 'tiempos-atencion', icono: '⏱️', titulo: 'Tiempos de Atención', color: '#6366f1' },
-    { id: 'expedientes-observados', icono: '🔴', titulo: 'Expedientes Observados', color: '#dc2626' },
-    { id: 'entregas', icono: '📦', titulo: 'Entregas', color: '#f59e0b' }
-  ];
-
-  const estiloBotonReporte = (activo, color) => ({
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '12px',
-    padding: '24px 16px',
-    backgroundColor: activo ? color : '#ffffff',
-    color: activo ? '#ffffff' : '#374151',
-    border: activo ? 'none' : '2px solid #e5e7eb',
-    borderRadius: '12px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    fontWeight: '600',
-    transition: 'all 0.3s ease',
-    boxShadow: activo ? '0 4px 12px rgba(0,0,0,0.15)' : '0 1px 3px rgba(0,0,0,0.1)',
-    textAlign: 'center',
-    minHeight: '140px'
-  });
-
-  const estiloBotonAccion = (color, disabled = false) => ({
-    padding: '12px 24px',
-    backgroundColor: disabled ? '#9ca3af' : color,
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    fontSize: '14px',
-    fontWeight: '600',
-    opacity: disabled ? '0.6' : '1',
-    transition: 'all 0.2s',
-    boxShadow: disabled ? 'none' : '0 2px 4px rgba(0,0,0,0.1)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px'
-  });
-
-  const puedeExportar = ['expedientes-periodo', 'expedientes-observados', 'entregas', 'por-colaborador'].includes(tipoReporte);
-
-  return (
-    <div style={{ padding: '28px', backgroundColor: '#f9fafb', minHeight: '100vh' }}>
-      {/* Encabezado Mejorado */}
-      <div style={{ 
-        background: 'linear-gradient(135deg, #083f8f 0%, #0ea5d7 100%)',
-        padding: '32px',
-        borderRadius: '16px',
-        marginBottom: '28px',
-        boxShadow: '0 4px 20px rgba(8, 63, 143, 0.3)',
-        color: '#ffffff'
-      }}>
-        <h1 style={{ 
-          margin: '0 0 12px 0',
-          fontSize: '32px',
-          fontWeight: '700',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px'
-        }}>
-          📊 REPORTES Y ESTADÍSTICAS
-        </h1>
-        <p style={{ margin: 0, fontSize: '16px', opacity: '0.95' }}>
-          Sistema integral de generación de reportes gerenciales para análisis y toma de decisiones estratégicas
-        </p>
+        </main>
       </div>
-
-      {/* Selector de Reportes Mejorado */}
-      <div style={{ 
-        backgroundColor: '#ffffff',
-        padding: '32px',
-        borderRadius: '16px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        marginBottom: '28px'
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '24px',
-          paddingBottom: '16px',
-          borderBottom: '2px solid #e5e7eb'
-        }}>
-          <h2 style={{ 
-            margin: 0,
-            fontSize: '20px',
-            fontWeight: '700',
-            color: '#083f8f'
-          }}>
-            🎯 Seleccione el Tipo de Reporte
-          </h2>
-          {tipoReporte && (
-            <button
-              onClick={() => {
-                setTipoReporte('');
-                setDatosReporte(null);
-                setError(null);
-              }}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#f3f4f6',
-                color: '#6b7280',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: '500'
-              }}
-            >
-              ✕ Limpiar
-            </button>
-          )}
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-          {reportes.map(reporte => (
-            <button 
-              key={reporte.id}
-              onClick={() => setTipoReporte(reporte.id)}
-              style={estiloBotonReporte(tipoReporte === reporte.id, reporte.color)}
-            >
-              <span style={{ fontSize: '48px' }}>{reporte.icono}</span>
-              <span>{reporte.titulo}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* Filtros */}
-        {renderFiltros()}
-
-        {/* Botones de Acción */}
-        {tipoReporte && (
-          <div style={{ marginTop: '28px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            <button 
-              onClick={generarReporte}
-              disabled={loading}
-              style={estiloBotonAccion('#0ea5d7', loading)}
-            >
-              <span>{loading ? '⏳' : '🔍'}</span>
-              <span>{loading ? 'Generando...' : 'Generar Reporte'}</span>
-            </button>
-
-            {datosReporte && puedeExportar && (
-              <button 
-                onClick={exportarExcel}
-                disabled={loading}
-                style={estiloBotonAccion('#10b981', loading)}
-              >
-                <span>📊</span>
-                <span>Exportar Excel</span>
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Error Mejorado */}
-        {error && (
-          <div style={{ 
-            marginTop: '20px',
-            padding: '16px 20px',
-            backgroundColor: '#fee2e2',
-            color: '#dc2626',
-            borderRadius: '10px',
-            fontSize: '14px',
-            fontWeight: '500',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            border: '2px solid #fecaca'
-          }}>
-            <span style={{ fontSize: '20px' }}>⚠️</span>
-            <span>{error}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Resultados */}
-      {datosReporte && (
-        <div style={{ animation: 'fadeIn 0.3s ease-in' }}>
-          {renderResultados()}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================
-// COMPONENTES DE REPORTES ESPECÍFICOS
-// ============================================
-
-function ReporteExpedientesPeriodo({ datos }) {
-  const estiloCard = {
-    backgroundColor: '#ffffff',
-    padding: '28px',
-    borderRadius: '16px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-    marginBottom: '20px'
-  };
-
-  const estiloStat = {
-    textAlign: 'center',
-    padding: '20px',
-    backgroundColor: '#f9fafb',
-    borderRadius: '12px',
-    border: '2px solid #e5e7eb'
-  };
-
-  return (
-    <div>
-      {/* Resumen Ejecutivo */}
-      <div style={estiloCard}>
-        <h3 style={{ margin: '0 0 24px 0', fontSize: '22px', fontWeight: '700', color: '#083f8f', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span>📈</span>
-          <span>RESUMEN EJECUTIVO</span>
-        </h3>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '20px' }}>
-          <div style={estiloStat}>
-            <div style={{ fontSize: '40px', fontWeight: '700', color: '#083f8f', marginBottom: '8px' }}>
-              {datos.resumen.total_recibidos}
-            </div>
-            <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>
-              Total Recibidos
-            </div>
-          </div>
-
-          <div style={estiloStat}>
-            <div style={{ fontSize: '40px', fontWeight: '700', color: '#10b981', marginBottom: '8px' }}>
-              {datos.resumen.total_atendidos}
-            </div>
-            <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>
-              Total Atendidos
-            </div>
-          </div>
-
-          <div style={estiloStat}>
-            <div style={{ fontSize: '40px', fontWeight: '700', color: '#f59e0b', marginBottom: '8px' }}>
-              {datos.resumen.total_observados}
-            </div>
-            <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>
-              Total Observados
-            </div>
-          </div>
-
-          <div style={estiloStat}>
-            <div style={{ fontSize: '40px', fontWeight: '700', color: '#0ea5d7', marginBottom: '8px' }}>
-              {datos.resumen.total_en_proceso}
-            </div>
-            <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>
-              En Proceso
-            </div>
-          </div>
-
-          <div style={estiloStat}>
-            <div style={{ fontSize: '40px', fontWeight: '700', color: '#6366f1', marginBottom: '8px' }}>
-              {datos.resumen.tiempo_promedio_dias}
-            </div>
-            <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>
-              Días Promedio
-            </div>
-          </div>
-
-          <div style={estiloStat}>
-            <div style={{ fontSize: '40px', fontWeight: '700', color: '#10b981', marginBottom: '8px' }}>
-              {datos.resumen.porcentaje_dentro_plazo}%
-            </div>
-            <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>
-              Dentro del Plazo
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Top 5 Asuntos */}
-      {datos.top_asuntos && datos.top_asuntos.length > 0 && (
-        <div style={estiloCard}>
-          <h3 style={{ margin: '0 0 20px 0', fontSize: '18px', fontWeight: '700', color: '#374151', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>🏆</span>
-            <span>TOP 5 ASUNTOS MÁS SOLICITADOS</span>
-          </h3>
-          
-          {datos.top_asuntos.map((asunto, idx) => (
-            <div key={idx} style={{ 
-              marginBottom: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '14px'
-            }}>
-              <div style={{ 
-                minWidth: '36px',
-                height: '36px',
-                borderRadius: '50%',
-                backgroundColor: '#083f8f',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '16px',
-                fontWeight: '700',
-                boxShadow: '0 2px 4px rgba(8,63,143,0.3)'
-              }}>
-                {idx + 1}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '15px', fontWeight: '600', color: '#374151', marginBottom: '8px' }}>
-                  {asunto.asunto}
-                </div>
-                <div style={{ 
-                  height: '10px',
-                  backgroundColor: '#e5e7eb',
-                  borderRadius: '5px',
-                  overflow: 'hidden'
-                }}>
-                  <div style={{ 
-                    height: '100%',
-                    width: `${asunto.porcentaje}%`,
-                    backgroundColor: '#0ea5d7',
-                    transition: 'width 0.5s ease'
-                  }} />
-                </div>
-              </div>
-              <div style={{ 
-                fontSize: '15px',
-                fontWeight: '700',
-                color: '#083f8f',
-                minWidth: '100px',
-                textAlign: 'right'
-              }}>
-                {asunto.cantidad} <span style={{ fontSize: '13px', color: '#6b7280' }}>({asunto.porcentaje}%)</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ReporteEstadosActuales({ datos }) {
-  const coloresPorEstado = {
-    'RECEPCIONADO': '#6366f1',
-    'EN PROCESO': '#f59e0b',
-    'OBSERVADO': '#dc2626',
-    'LISTO PARA ENTREGA': '#10b981',
-    'ENTREGADO': '#6b7280'
-  };
-
-  return (
-    <div style={{ 
-      backgroundColor: '#ffffff',
-      padding: '28px',
-      borderRadius: '16px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-    }}>
-      <h3 style={{ margin: '0 0 24px 0', fontSize: '22px', fontWeight: '700', color: '#083f8f', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span>📊</span>
-        <span>DISTRIBUCIÓN POR ESTADOS</span>
-      </h3>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '20px', marginBottom: '32px' }}>
-        {datos.por_estado.map((item, idx) => (
-          <div key={idx} style={{ 
-            padding: '20px',
-            backgroundColor: '#f9fafb',
-            borderRadius: '12px',
-            borderLeft: `5px solid ${coloresPorEstado[item.estado] || '#6b7280'}`,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
-          }}>
-            <div style={{ fontSize: '14px', color: '#6b7280', marginBottom: '10px', fontWeight: '600' }}>
-              {item.estado}
-            </div>
-            <div style={{ fontSize: '40px', fontWeight: '700', color: '#083f8f', marginBottom: '4px' }}>
-              {item.cantidad}
-            </div>
-            <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '500' }}>
-              {item.porcentaje}% del total
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Expedientes más antiguos */}
-      {datos.expedientes_mas_antiguos && datos.expedientes_mas_antiguos.length > 0 && (
-        <div style={{ marginTop: '32px' }}>
-          <h4 style={{ margin: '0 0 16px 0', fontSize: '18px', fontWeight: '700', color: '#374151', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>⚠️</span>
-            <span>EXPEDIENTES PENDIENTES </span>
-          </h4>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f3f4f6' }}>
-                  <th style={{ padding: '14px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>N° Expediente</th>
-                  <th style={{ padding: '14px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Solicitante</th>
-                  <th style={{ padding: '14px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Asunto</th>
-                  <th style={{ padding: '14px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Estado</th>
-                  <th style={{ padding: '14px', textAlign: 'center', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Días</th>
-                </tr>
-              </thead>
-              <tbody>
-                {datos.expedientes_mas_antiguos.map((exp, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={{ padding: '14px', fontSize: '14px', fontWeight: '600' }}>{exp.num_expediente}</td>
-                    <td style={{ padding: '14px', fontSize: '14px' }}>{exp.solicitante}</td>
-                    <td style={{ padding: '14px', fontSize: '14px' }}>{exp.asunto}</td>
-                    <td style={{ padding: '14px', fontSize: '14px' }}>
-                      <span style={{ 
-                        padding: '6px 12px',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        backgroundColor: coloresPorEstado[exp.estado] || '#6b7280',
-                        color: '#ffffff'
-                      }}>
-                        {exp.estado}
-                      </span>
-                    </td>
-                    <td style={{ 
-                      padding: '14px',
-                      fontSize: '16px',
-                      fontWeight: '700',
-                      textAlign: 'center',
-                      color: exp.dias_transcurridos >= 10 ? '#dc2626' : '#f59e0b'
-                    }}>
-                      {exp.dias_transcurridos}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ReportePorColaborador({ datos }) {
-  return (
-    <div style={{ 
-      backgroundColor: '#ffffff',
-      padding: '28px',
-      borderRadius: '16px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h3 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#083f8f', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span>👥</span>
-          <span>ESTADÍSTICAS POR COLABORADOR</span>
-        </h3>
-        <div style={{ 
-          padding: '12px 20px',
-          backgroundColor: '#f3f4f6',
-          borderRadius: '8px',
-          fontSize: '14px',
-          fontWeight: '600',
-          color: '#6b7280'
-        }}>
-          Total: {datos.total_usuarios} colaboradores
-        </div>
-      </div>
-
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#083f8f' }}>
-              <th style={{ padding: '16px', textAlign: 'left', color: '#ffffff', fontSize: '14px', fontWeight: '700' }}>Usuario</th>
-              <th style={{ padding: '16px', textAlign: 'left', color: '#ffffff', fontSize: '14px', fontWeight: '700' }}>Nombre Completo</th>
-              <th style={{ padding: '16px', textAlign: 'center', color: '#ffffff', fontSize: '14px', fontWeight: '700' }}>Total Atenciones</th>
-              <th style={{ padding: '16px', textAlign: 'center', color: '#ffffff', fontSize: '14px', fontWeight: '700' }}>En Proceso</th>
-              <th style={{ padding: '16px', textAlign: 'center', color: '#ffffff', fontSize: '14px', fontWeight: '700' }}>Observados</th>
-              <th style={{ padding: '16px', textAlign: 'center', color: '#ffffff', fontSize: '14px', fontWeight: '700' }}>Listos Entrega</th>
-            </tr>
-          </thead>
-          <tbody>
-            {datos.estadisticas.map((stat, idx) => (
-              <tr key={idx} style={{ 
-                borderBottom: '1px solid #e5e7eb',
-                backgroundColor: idx % 2 === 0 ? '#ffffff' : '#f9fafb'
-              }}>
-                <td style={{ padding: '14px', fontSize: '14px', fontWeight: '600' }}>
-                  {stat.usuario}
-                </td>
-                <td style={{ padding: '14px', fontSize: '14px' }}>
-                  {stat.nombre_completo}
-                </td>
-                <td style={{ padding: '14px', textAlign: 'center', fontSize: '16px', fontWeight: '700', color: '#083f8f' }}>
-                  {stat.total_atenciones}
-                </td>
-                <td style={{ padding: '14px', textAlign: 'center', fontSize: '14px' }}>
-                  {stat.en_proceso}
-                </td>
-                <td style={{ padding: '14px', textAlign: 'center', fontSize: '14px', color: '#f59e0b', fontWeight: '600' }}>
-                  {stat.observados}
-                </td>
-                <td style={{ padding: '14px', textAlign: 'center', fontSize: '14px', color: '#10b981', fontWeight: '600' }}>
-                  {stat.listos_entrega}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function ReporteTiemposAtencion({ datos }) {
-  return (
-    <div style={{ 
-      backgroundColor: '#ffffff',
-      padding: '28px',
-      borderRadius: '16px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-    }}>
-      <h3 style={{ margin: '0 0 24px 0', fontSize: '22px', fontWeight: '700', color: '#083f8f', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span>⏱️</span>
-        <span>TIEMPOS DE ATENCIÓN POR ASUNTO</span>
-      </h3>
-
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f3f4f6' }}>
-              <th style={{ padding: '14px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Asunto</th>
-              <th style={{ padding: '14px', textAlign: 'center', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Promedio</th>
-              <th style={{ padding: '14px', textAlign: 'center', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Mín</th>
-              <th style={{ padding: '14px', textAlign: 'center', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Máx</th>
-              <th style={{ padding: '14px', textAlign: 'center', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>% &lt;10d</th>
-            </tr>
-          </thead>
-          <tbody>
-            {datos.tiempos_por_asunto.map((item, idx) => (
-              <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ padding: '14px', fontSize: '14px', fontWeight: '500' }}>{item.asunto}</td>
-                <td style={{ padding: '14px', textAlign: 'center', fontSize: '16px', fontWeight: '700', color: '#083f8f' }}>
-                  {item.promedio_dias} días
-                </td>
-                <td style={{ padding: '14px', textAlign: 'center', fontSize: '14px' }}>
-                  {item.minimo_dias}d
-                </td>
-                <td style={{ padding: '14px', textAlign: 'center', fontSize: '14px' }}>
-                  {item.maximo_dias}d
-                </td>
-                <td style={{ padding: '14px', textAlign: 'center', fontSize: '16px', fontWeight: '700' }}>
-                  <span style={{ 
-                    color: item.porcentaje_dentro_plazo >= 80 ? '#10b981' : '#dc2626'
-                  }}>
-                    {item.porcentaje_dentro_plazo}%
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Cuellos de botella */}
-      {datos.cuellos_botella && datos.cuellos_botella.length > 0 && (
-        <div style={{ 
-          marginTop: '24px',
-          padding: '20px',
-          backgroundColor: '#fee2e2',
-          borderRadius: '12px',
-          borderLeft: '5px solid #dc2626'
-        }}>
-          <h4 style={{ margin: '0 0 14px 0', fontSize: '16px', fontWeight: '700', color: '#dc2626', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>⚠️</span>
-            <span>CUELLOS DE BOTELLA IDENTIFICADOS</span>
-          </h4>
-          <ul style={{ margin: 0, paddingLeft: '24px' }}>
-            {datos.cuellos_botella.map((item, idx) => (
-              <li key={idx} style={{ fontSize: '14px', color: '#374151', marginBottom: '8px', fontWeight: '500' }}>
-                <strong>{item.asunto}</strong> supera el plazo en el {100 - item.porcentaje_dentro_plazo}% de los casos
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ReporteExpedientesObservados({ datos }) {
-  const getColorUrgencia = (urgencia) => {
-    switch (urgencia) {
-      case 'alta': return '#dc2626';
-      case 'media': return '#f59e0b';
-      default: return '#10b981';
-    }
-  };
-
-  return (
-    <div style={{ 
-      backgroundColor: '#ffffff',
-      padding: '28px',
-      borderRadius: '16px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-    }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '20px' }}>
-        <h3 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#083f8f', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <span>🔴</span>
-          <span>EXPEDIENTES OBSERVADOS</span>
-        </h3>
-        <div style={{ display: 'flex', gap: '20px' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '32px', fontWeight: '700', color: '#dc2626' }}>
-              {datos.estadisticas.urgencia_alta}
-            </div>
-            <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600' }}>Urgencia Alta</div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '32px', fontWeight: '700', color: '#f59e0b' }}>
-              {datos.estadisticas.urgencia_media}
-            </div>
-            <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600' }}>Urgencia Media</div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '32px', fontWeight: '700', color: '#083f8f' }}>
-              {datos.estadisticas.promedio_dias}
-            </div>
-            <div style={{ fontSize: '12px', color: '#6b7280', fontWeight: '600' }}>Días Promedio</div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f3f4f6' }}>
-              <th style={{ padding: '14px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>N° Expediente</th>
-              <th style={{ padding: '14px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Solicitante</th>
-              <th style={{ padding: '14px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Asunto</th>
-              <th style={{ padding: '14px', textAlign: 'center', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Días</th>
-              <th style={{ padding: '14px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Observaciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {datos.expedientes.map((exp, idx) => (
-              <tr key={idx} style={{ 
-                borderBottom: '1px solid #e5e7eb',
-                backgroundColor: exp.urgencia === 'alta' ? '#fee2e2' : (exp.urgencia === 'media' ? '#fef3c7' : '#ffffff')
-              }}>
-                <td style={{ padding: '14px', fontSize: '14px', fontWeight: '600' }}>
-                  {exp.num_expediente}
-                </td>
-                <td style={{ padding: '14px', fontSize: '14px' }}>
-                  {exp.solicitante}
-                </td>
-                <td style={{ padding: '14px', fontSize: '14px' }}>
-                  {exp.asunto}
-                </td>
-                <td style={{ 
-                  padding: '14px',
-                  textAlign: 'center',
-                  fontSize: '16px',
-                  fontWeight: '700',
-                  color: getColorUrgencia(exp.urgencia)
-                }}>
-                  {exp.dias_transcurridos} / 10
-                </td>
-                <td style={{ padding: '14px', fontSize: '13px', color: '#6b7280' }}>
-                  {exp.observaciones || 'Sin observaciones'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function ReporteEntregas({ datos }) {
-  // ✅ Validar que entregas sea un array antes de usar slice
-  const entregas = Array.isArray(datos.entregas) ? datos.entregas : [];
-  
-  return (
-    <div style={{ 
-      backgroundColor: '#ffffff',
-      padding: '28px',
-      borderRadius: '16px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.08)'
-    }}>
-      <h3 style={{ margin: '0 0 24px 0', fontSize: '22px', fontWeight: '700', color: '#083f8f', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <span>📦</span>
-        <span>REPORTE DE ENTREGAS</span>
-      </h3>
-
-      {/* Estadísticas Generales */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '20px', marginBottom: '28px' }}>
-        <div style={{ padding: '20px', backgroundColor: '#f9fafb', borderRadius: '12px', textAlign: 'center', border: '2px solid #e5e7eb' }}>
-          <div style={{ fontSize: '40px', fontWeight: '700', color: '#083f8f', marginBottom: '8px' }}>
-            {datos.estadisticas?.total_entregas || 0}
-          </div>
-          <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>
-            Total Entregas
-          </div>
-        </div>
-
-        <div style={{ padding: '20px', backgroundColor: '#f9fafb', borderRadius: '12px', textAlign: 'center', border: '2px solid #e5e7eb' }}>
-          <div style={{ fontSize: '40px', fontWeight: '700', color: '#10b981', marginBottom: '8px' }}>
-            {datos.estadisticas?.entrega_titular || 0}
-          </div>
-          <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>
-            Entrega Titular
-          </div>
-        </div>
-
-        <div style={{ padding: '20px', backgroundColor: '#f9fafb', borderRadius: '12px', textAlign: 'center', border: '2px solid #e5e7eb' }}>
-          <div style={{ fontSize: '40px', fontWeight: '700', color: '#f59e0b', marginBottom: '8px' }}>
-            {datos.estadisticas?.entrega_tercero || 0}
-          </div>
-          <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>
-            Entrega Tercero
-          </div>
-        </div>
-
-        <div style={{ padding: '20px', backgroundColor: '#f9fafb', borderRadius: '12px', textAlign: 'center', border: '2px solid #e5e7eb' }}>
-          <div style={{ fontSize: '40px', fontWeight: '700', color: '#6366f1', marginBottom: '8px' }}>
-            {datos.estadisticas?.tiempo_promedio || 0}
-          </div>
-          <div style={{ fontSize: '13px', color: '#6b7280', fontWeight: '600' }}>
-            Días Promedio
-          </div>
-        </div>
-      </div>
-
-      {/* Tabla de Entregas */}
-      {entregas.length > 0 ? (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f3f4f6' }}>
-                <th style={{ padding: '14px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>N° Expediente</th>
-                <th style={{ padding: '14px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Solicitante</th>
-                <th style={{ padding: '14px', textAlign: 'center', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Tipo Recogida</th>
-                <th style={{ padding: '14px', textAlign: 'center', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Fecha Entrega</th>
-                <th style={{ padding: '14px', textAlign: 'center', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Días Atención</th>
-                <th style={{ padding: '14px', textAlign: 'left', fontSize: '13px', fontWeight: '700', color: '#6b7280', borderBottom: '2px solid #e5e7eb' }}>Entregado Por</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entregas.slice(0, 50).map((entrega, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <td style={{ padding: '14px', fontSize: '14px', fontWeight: '600' }}>
-                    {entrega.expediente?.num_expediente || 'N/A'}
-                  </td>
-                  <td style={{ padding: '14px', fontSize: '14px' }}>
-                    {entrega.expediente?.solicitante?.nombre_solicitante || 'N/A'}
-                  </td>
-                  <td style={{ padding: '14px', textAlign: 'center', fontSize: '14px' }}>
-                    <span style={{ 
-                      padding: '6px 12px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      backgroundColor: entrega.tipo_recogida === 'titular' ? '#d1fae5' : '#fed7aa',
-                      color: entrega.tipo_recogida === 'titular' ? '#065f46' : '#92400e'
-                    }}>
-                      {entrega.tipo_recogida?.toUpperCase() || 'N/A'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '14px', textAlign: 'center', fontSize: '14px' }}>
-                    {entrega.fecha_entrega ? new Date(entrega.fecha_entrega).toLocaleDateString('es-PE') : 'N/A'}
-                  </td>
-                  <td style={{ 
-                    padding: '14px',
-                    textAlign: 'center',
-                    fontSize: '16px',
-                    fontWeight: '700',
-                    color: (entrega.dias_atencion || 0) <= 10 ? '#10b981' : '#dc2626'
-                  }}>
-                    {entrega.dias_atencion || 0}
-                  </td>
-                  <td style={{ padding: '14px', fontSize: '14px' }}>
-                    {entrega.entregado_por || 'N/A'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-          No hay entregas registradas en el período seleccionado
-        </div>
-      )}
     </div>
   );
 }
