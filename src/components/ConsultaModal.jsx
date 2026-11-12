@@ -1,6 +1,7 @@
 // src/components/ConsultaModal.jsx
 import { h } from 'preact';
 import { useState, useEffect } from 'preact/hooks';
+import { contarDiasHabiles } from '../utils/diasHabiles';
 
 export default function ConsultaModal({ isOpen, onClose, expediente }) {
     const [isVisible, setIsVisible] = useState(false);
@@ -53,41 +54,9 @@ export default function ConsultaModal({ isOpen, onClose, expediente }) {
         }
     };
 
-    // ============================================
-    // FUNCIÓN CORREGIDA PARA CALCULAR DÍAS
-    // ============================================
     const calcularDiasTranscurridos = (fechaRecepcion) => {
         if (!fechaRecepcion) return 0;
-        
-        try {
-            const hoy = new Date();
-            const partes = fechaRecepcion.split('-');
-            if (partes.length === 3) {
-                const year = parseInt(partes[0]);
-                const month = parseInt(partes[1]) - 1;
-                const day = parseInt(partes[2]);
-                
-                const fechaRecep = new Date(year, month, day);
-                
-                if (isNaN(fechaRecep.getTime())) {
-                    console.error('Fecha de recepción inválida:', fechaRecepcion);
-                    return 0;
-                }
-                
-                const hoyNormalizado = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
-                const fechaNormalizada = new Date(year, month, day);
-                
-                const diferenciaMilisegundos = hoyNormalizado.getTime() - fechaNormalizada.getTime();
-                const diferenciaDias = Math.floor(diferenciaMilisegundos / (1000 * 60 * 60 * 24));
-                
-                return diferenciaDias >= 0 ? diferenciaDias : 0;
-            }
-            
-            return 0;
-        } catch (error) {
-            console.error('Error al calcular días:', error, fechaRecepcion);
-            return 0;
-        }
+        return contarDiasHabiles(fechaRecepcion);
     };
 
     const obtenerColorEstado = (estado) => {
@@ -247,7 +216,7 @@ export default function ConsultaModal({ isOpen, onClose, expediente }) {
                     <div className="progreso-section">
                         <div className="progreso-header">
                             <span className="progreso-label">Tiempo transcurrido</span>
-                            <span className="progreso-dias">{diasTranscurridos} / {diasLimite} días</span>
+                            <span className="progreso-dias">{diasTranscurridos} / {diasLimite} días hábiles</span>
                         </div>
                         <div className="progreso-bar">
                             <div 
