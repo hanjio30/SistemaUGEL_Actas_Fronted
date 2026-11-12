@@ -151,12 +151,14 @@ export default function AtencionModule() {
       const expedienteResponse = await fetch(`${API_BASE}/expedientes/${expedienteSeleccionado.id_expediente}`, {
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'X-Usuario': nombreUsuario
         },
         credentials: 'include', // Para enviar cookies de sesión
         body: JSON.stringify({
           estado: estadoSeleccionado,
-          observaciones: observaciones
+          observaciones: observaciones,
+          usuario: nombreUsuario
         })
       });
 
