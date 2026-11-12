@@ -327,28 +327,44 @@ export default function RecepcionModule() {
 }
 
       // 2. Crear expediente
-      const expedienteData = {
-        solicitante_id: solicitante.id_solicitante,
-        asunto_id: parseInt(asuntoId),
-        fecha_recepcion: fechaRecepcion,
-        receptor: receptorDocumento,
-        nombre_documento: nombreDocumento || 'FUT',
-        tipo_documento: tipoDocumento
-      };
-      
-      const usuarioData = JSON.parse(localStorage.getItem('usuario') || '{}');
-      const nombreUsuario = usuarioData.usuario || usuarioData.nombre || '';
+const usuarioGuardado = sessionStorage.getItem('usuario');
+let nombreUsuario = '';
+try {
+  const usuarioData = JSON.parse(usuarioGuardado || '{}');
+  nombreUsuario = usuarioData.usuario || usuarioData.nombre || '';
+} catch (e) {
+  nombreUsuario = '';
+}
 
-      const expedienteResponse = await fetch(`${API_URL}/expedientes`, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-Usuario': nombreUsuario
-        },
-        body: JSON.stringify(expedienteData)
-      });
+if (!nombreUsuario) {
+  throw new Error('No se pudo identificar el usuario. Inicie sesión nuevamente.');
+}
 
-      const expediente = await expedienteResponse.json();
+const expedienteData = {
+  solicitante_id: solicitante.id_solicitante,
+  asunto_id: parseInt(asuntoId),
+  fecha_recepcion: fechaRecepcion,
+  receptor: receptorDocumento,
+  nombre_documento: nombreDocumento || 'FUT',
+  tipo_documento: tipoDocumento,
+  usuario: nombreUsuario
+};
+
+const expedienteResponse = await fetch(`${API_URL}/expedientes`, {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Usuario': nombreUsuario
+  },
+  credentials: 'include',
+  body: JSON.stringify(expedienteData)
+});
+
+if (!expedienteResponse.ok) {
+  throw new Error('El servidor no pudo registrar el expediente');
+}
+
+const expediente = await expedienteResponse.json();
 
       // Calcular fecha límite (10 días hábiles)
       const fechaLimite = calcularFechaLimite(fechaRecepcion, 10);
