@@ -34,16 +34,19 @@ const norm = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0
 /* ---------- consultas optimizadas: caché + cancelación ---------- */
 
 const CACHE = new Map();
-async function pedir(url, { signal, forzar } = {}) {
+// Solo se cachean datos estáticos (catálogos). Los reportes SIEMPRE van al servidor
+// para reflejar de inmediato las atenciones recién registradas.
+async function pedir(url, { signal, cachear = false } = {}) {
   const hit = CACHE.get(url);
-  if (!forzar && hit && Date.now() - hit.t < TTL_CACHE) return { data: hit.data, cache: true };
-  const res = await fetch(url, { signal });
+  if (cachear && hit && Date.now() - hit.t < TTL_CACHE) return { data: hit.data, cache: true };
+  const sep = url.includes('?') ? '&' : '?';
+  const res = await fetch(cachear ? url : `${url}${sep}_=${Date.now()}`, { signal, cache: 'no-store' });
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     throw new Error(e.message || 'No se pudo generar el reporte');
   }
   const data = await res.json();
-  CACHE.set(url, { t: Date.now(), data });
+  if (cachear) CACHE.set(url, { t: Date.now(), data });
   return { data, cache: false };
 }
 
@@ -682,7 +685,7 @@ export default function ReportesModule({ usuario }) {
     const hoy = new Date();
     setF((p) => ({ ...p, ini: aISO(new Date(hoy.getFullYear(), hoy.getMonth(), 1)), fin: aISO(hoy) }));
     const ac = new AbortController();
-    pedir(`${API_URL}/documentos`, { signal: ac.signal })
+    pedir(`${API_URL}/documentos`, { signal: ac.signal, cachear: true })
       .then(({ data }) => setDocumentos(Array.isArray(data) ? data : []))
       .catch((e) => e.name !== 'AbortError' && console.error('Error al cargar documentos:', e));
     return () => ac.abort();
@@ -695,7 +698,7 @@ export default function ReportesModule({ usuario }) {
     setF((p) => ({ ...p, q: '', estado: 'Todos', soloObs: false, cumpl: 'todos', urg: 'todas', recogida: 'todos' }));
   };
 
-  const generar = async (forzar = false) => {
+  const generar = async () => {
     if (!tipo) return;
     abortRef.current?.abort();
     const ac = new AbortController();
@@ -717,15 +720,15 @@ export default function ReportesModule({ usuario }) {
       let resp;
       if (tipo === 'por-asunto') {
         try {
-          resp = await pedir(`${API_URL}/reportes/por-asunto?${p}`, { signal: ac.signal, forzar });
+          resp = await pedir(`${API_URL}/reportes/por-asunto?${p}`, { signal: ac.signal });
         } catch (e) {
           if (e.name === 'AbortError') throw e;
-          const base = await pedir(`${API_URL}/reportes/expedientes-periodo?${p}`, { signal: ac.signal, forzar });
+          const base = await pedir(`${API_URL}/reportes/expedientes-periodo?${p}`, { signal: ac.signal });
           resp = { cache: base.cache, data: { filas: agruparPorAsunto(base.data.expedientes) } };
         }
         if (!resp.data.filas && Array.isArray(resp.data.asuntos)) resp.data = { filas: resp.data.asuntos };
       } else {
-        resp = await pedir(`${API_URL}/reportes/${tipo}?${p}`, { signal: ac.signal, forzar });
+        resp = await pedir(`${API_URL}/reportes/${tipo}?${p}`, { signal: ac.signal });
       }
       setDatos(resp.data); setDesdeCache(resp.cache);
     } catch (e) {
@@ -908,13 +911,13 @@ export default function ReportesModule({ usuario }) {
                 </div>
 
                 <div class="rp-acc">
-                  <button class="rp-btn" onClick={() => generar(false)} disabled={loading}>
+                  <button class="rp-btn" onClick={() => generar()} disabled={loading}>
                     {loading && <span class="rp-spin" />}{loading ? 'Generando…' : 'Generar reporte'}
                   </button>
-                  <button class="rp-btn ghost" onClick={() => generar(true)} disabled={loading} title="Ignora la caché y consulta de nuevo">↻ Actualizar</button>
+                  <button class="rp-btn ghost" onClick={() => generar()} disabled={loading} title="Vuelve a consultar el servidor">↻ Actualizar</button>
                   <button class="rp-btn ghost" onClick={limpiar}>Limpiar filtros</button>
                   <div class="rp-sp" />
-                  {datos && desdeCache && <span class="rp-badge">⚡ Resultado en caché</span>}
+                  
                   {datos && rep.excel && (
                     <button class="rp-btn xl" onClick={exportarExcel} disabled={!!exportando}>{exportando === 'xlsx' ? 'Exportando…' : '⬇ Excel'}</button>
                   )}
