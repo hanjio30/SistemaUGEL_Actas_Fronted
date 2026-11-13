@@ -12,6 +12,7 @@ import HistorialModule from './modules/HistorialModule';
 import UsuariosModule from './modules/UsuariosModule';
 import AsuntosModule from './modules/AsuntosModule';
 import ReportesModule from './modules/ReportesModule';
+import WelcomeScreen from './WelcomeScreen';
 
 interface Module {
   id: string;
@@ -177,47 +178,10 @@ export default function DashboardController({ colaboradorModules, adminModules }
         <div className="content-body">
           {/* Welcome Screen */}
           {activeModule === 'welcome' && (
-            <div className="module-content active">
-              <div className="welcome-screen">
-                <div className="welcome-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <h2>Bienvenido al Sistema</h2>
-                <p>Área de Actas y Certificaciones - UGEL Santa</p>
-                <div className="welcome-cards">
-                  <div className="info-card">
-                    <div className="info-icon blue">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                    </div>
-                    <h3>Sistema de Gestión</h3>
-                    <p>Administre expedientes y documentación de manera eficiente</p>
-                  </div>
-                  <div className="info-card">
-                    <div className="info-icon green">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <h3>Seguimiento en Tiempo Real</h3>
-                    <p>Monitoree el estado de todos los expedientes</p>
-                  </div>
-                  <div className="info-card">
-                    <div className="info-icon purple">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                      </svg>
-                    </div>
-                    <h3>Historial Completo</h3>
-                    <p>Acceda al historial de todos los procedimientos</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+  <div className="module-content active">
+    <WelcomeScreen user={user} modules={modules} onSelect={handleModuleClick} />
+  </div>
+)}
 
          {/* Módulos Implementados */}
 {modules.map(module => {
