@@ -25,9 +25,18 @@ interface Props {
 /** Etapas del expediente, en el orden en que avanza el trámite. */
 const FLOW_IDS = ['recepcion', 'gestion', 'atencion', 'observados', 'entrega'];
 
+/** Nombres cortos para la ruta (el nombre completo queda en el tooltip y el lector de pantalla). */
+const SHORT_LABELS: Record<string, string> = {
+  recepcion: 'Recepción',
+  gestion: 'Gestión',
+  atencion: 'Atención',
+  observados: 'Observados',
+  entrega: 'Entrega',
+};
+
 const DESCRIPTIONS: Record<string, string> = {
   recepcion: 'Registra los expedientes que ingresan',
-  gestion: 'Asigna y da seguimiento a cada trámite',
+  gestion: 'Visualiza, edita y elimina expedientes registrados',
   atencion: 'Atiende los expedientes asignados',
   observados: 'Subsana los expedientes con observaciones',
   entrega: 'Entrega actas y certificados al solicitante',
@@ -57,7 +66,21 @@ const ArrowIcon = () => (
   </svg>
 );
 
+const PlusIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M12 5v14M5 12h14" />
+  </svg>
+);
+
+const ClockIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+);
+
 export default function WelcomeScreen({ user, modules, onSelect }: Props) {
+  const has = (id: string) => modules.some(m => m.id === id);
+
   const flow = FLOW_IDS
     .map(id => modules.find(m => m.id === id))
     .filter((m): m is Module => Boolean(m));
@@ -68,14 +91,6 @@ export default function WelcomeScreen({ user, modules, onSelect }: Props) {
   return (
     <div className="ws">
       <section className="ws-hero" aria-labelledby="ws-title">
-        <div className="ws-hero-top">
-          <div className="ws-org">
-            <strong>UGEL Santa</strong>
-            <span>Área de Actas y Certificaciones</span>
-          </div>
-          <span className="ws-role">{user.rol || 'Colaborador'}</span>
-        </div>
-
         <h2 id="ws-title" className="ws-title">
           {getGreeting()}{firstName ? `, ${firstName}` : ''}
         </h2>
@@ -83,14 +98,37 @@ export default function WelcomeScreen({ user, modules, onSelect }: Props) {
           Así avanza un expediente por el sistema. Entra a cualquier etapa para continuar tu trabajo.
         </p>
 
+        {(has('recepcion') || has('historial')) && (
+          <div className="ws-actions">
+            {has('recepcion') && (
+              <button type="button" className="ws-btn ws-btn-primary" onClick={() => onSelect('recepcion')}>
+                <PlusIcon />
+                Recibir expediente
+              </button>
+            )}
+            {has('historial') && (
+              <button type="button" className="ws-btn ws-btn-ghost" onClick={() => onSelect('historial')}>
+                <ClockIcon />
+                Consultar historial
+              </button>
+            )}
+          </div>
+        )}
+
         {flow.length > 0 && (
           <ol className="ws-track" style={`--ws-steps:${flow.length}`}>
             {flow.map((module, i) => (
               <li key={module.id} className="ws-step" style={`--i:${i}`}>
-                <button type="button" className="ws-step-btn" onClick={() => onSelect(module.id)}>
+                <button
+                  type="button"
+                  className="ws-step-btn"
+                  title={module.title}
+                  aria-label={`${module.title}. ${DESCRIPTIONS[module.id] || ''}`}
+                  onClick={() => onSelect(module.id)}
+                >
                   <span className="ws-node">{i + 1}</span>
                   <span className="ws-step-text">
-                    <span className="ws-step-title">{module.title}</span>
+                    <span className="ws-step-title">{SHORT_LABELS[module.id] || module.title}</span>
                     <span className="ws-step-desc">{DESCRIPTIONS[module.id]}</span>
                   </span>
                 </button>
@@ -120,7 +158,9 @@ export default function WelcomeScreen({ user, modules, onSelect }: Props) {
                 </span>
                 <span className="ws-tile-text">
                   <span className="ws-tile-title">{module.title}</span>
-                  <span className="ws-tile-desc">{DESCRIPTIONS[module.id] || `Módulo de ${module.title.toLowerCase()}`}</span>
+                  <span className="ws-tile-desc">
+                    {DESCRIPTIONS[module.id] || `Módulo de ${module.title.toLowerCase()}`}
+                  </span>
                 </span>
                 <ArrowIcon />
               </button>
