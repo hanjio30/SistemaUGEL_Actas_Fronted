@@ -385,7 +385,7 @@ const fila = (label, contenido) => (
               alignItems: 'center',
               gap: '12px'
             }}>
-              📋 MIS EXPEDIENTES
+              📋 MIS EXPEDIENTES v2
             </h2>
           </div>
 
