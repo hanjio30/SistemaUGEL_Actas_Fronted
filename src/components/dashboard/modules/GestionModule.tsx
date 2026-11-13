@@ -848,9 +848,6 @@ const tipoDocumentoNombre =
                 }}>
                   DOCUMENTO
                 </h3>
-                <pre style={{ fontSize: '11px', background: '#fffbe6', padding: '8px' }}>
-  {JSON.stringify({ documentos: documentos.slice(0, 2), asuntos: asuntos.slice(0, 2), exp: expedienteSeleccionado.asunto }, null, 2)}
-</pre>
                 <div style={{ display: 'grid', gap: '10px', fontSize: '14px' }}>
                   {modoEdicion ? (
                     <>
