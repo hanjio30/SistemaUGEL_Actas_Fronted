@@ -13,8 +13,61 @@ export default function GestionModule() {
   const [error, setError] = useState(null);
   const [modoEdicion, setModoEdicion] = useState(false);
   const [formData, setFormData] = useState({});
+  const [documentos, setDocumentos] = useState([]);
+  const [asuntos, setAsuntos] = useState([]);
 
   const API_BASE = 'https://sistemaugel-actas-backend.onrender.com/api';
+  const armarFormData = (exp) => ({
+  observaciones: exp.observaciones || '',
+  documento_id: exp.asunto?.documento?.id_documento ?? exp.asunto?.documento_id ?? '',
+  asunto_id: exp.asunto_id ?? exp.asunto?.id_asunto ?? '',
+  nombre_solicitante: exp.solicitante?.nombre_solicitante || '',
+  dni: exp.solicitante?.dni || '',
+  codigo_modular: exp.solicitante?.codigo_modular || '',
+  email: exp.solicitante?.email || '',
+  telefono: exp.solicitante?.telefono || ''
+});
+
+const cargarCatalogos = async () => {
+  if (documentos.length && asuntos.length) return;
+  try {
+    const [rDoc, rAsu] = await Promise.all([
+      fetch(`${API_BASE}/documentos`),
+      fetch(`${API_BASE}/asuntos`)
+    ]);
+    if (!rDoc.ok || !rAsu.ok) throw new Error('No se pudieron cargar los catálogos');
+    setDocumentos(await rDoc.json());
+    setAsuntos(await rAsu.json());
+  } catch (err) {
+    alert(err.message);
+  }
+};
+
+const asuntosDelDocumento = asuntos.filter(
+  (a) => String(a.documento_id) === String(formData.documento_id)
+);
+
+const inputStyle = {
+  width: '100%',
+  padding: '8px 12px',
+  border: `2px solid ${colores.fondo}`,
+  borderRadius: '8px',
+  fontSize: '14px',
+  fontFamily: 'inherit',
+  outline: 'none',
+  boxSizing: 'border-box',
+  backgroundColor: colores.blanco
+};
+
+const setCampo = (campo, valor) => setFormData((prev) => ({ ...prev, [campo]: valor }));
+
+// OJO: es una función, no un componente. Si fuera un componente, el input perdería el foco en cada tecla.
+const fila = (label, contenido) => (
+  <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '12px', alignItems: 'center' }}>
+    <span style={{ fontWeight: '600', color: colores.texto }}>{label}</span>
+    {contenido}
+  </div>
+);
 
   const EstilosImpresion = () => (
   <style>{`
@@ -168,9 +221,7 @@ export default function GestionModule() {
       if (!response.ok) throw new Error('Error al cargar detalle');
       const data = await response.json();
       setExpedienteSeleccionado(data);
-      setFormData({
-        observaciones: data.observaciones || ''
-    });
+      setFormData(armarFormData(data));
       setModoEdicion(false);
     } catch (err) {
       setError(err.message);
@@ -184,10 +235,55 @@ export default function GestionModule() {
   };
 
   const editarExpediente = async () => {
-    if (!modoEdicion) {
-      setModoEdicion(true);
-      return;
+  if (!modoEdicion) {
+    setModoEdicion(true);
+    cargarCatalogos();
+    return;
+  }
+
+  // Validaciones básicas
+  if (!formData.asunto_id) {
+    alert('Seleccione el tipo de documento y el asunto');
+    return;
+  }
+  if (!formData.nombre_solicitante.trim()) {
+    alert('El nombre del solicitante es obligatorio');
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/expedientes/${expedienteSeleccionado.id_expediente}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        observaciones: formData.observaciones,
+        asunto_id: Number(formData.asunto_id),
+        solicitante: {
+          nombre_solicitante: formData.nombre_solicitante.trim(),
+          dni: formData.dni || null,
+          codigo_modular: formData.codigo_modular || null,
+          email: formData.email || null,
+          telefono: formData.telefono || null
+        }
+      })
+    });
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      const detalle = body.messages ? Object.values(body.messages).flat().join('\n') : body.error;
+      throw new Error(detalle || 'Error al actualizar expediente');
     }
+
+    const resultado = await response.json();
+    alert('Expediente actualizado exitosamente');
+    setExpedienteSeleccionado(resultado.data);   // <-- .data (antes se guardaba todo el objeto)
+    setFormData(armarFormData(resultado.data));
+    setModoEdicion(false);
+    cargarExpedientes();
+  } catch (err) {
+    alert('Error al actualizar: ' + err.message);
+  }
+};
 
   // Guardar cambios
     try {
@@ -215,9 +311,7 @@ export default function GestionModule() {
 
   const cancelarEdicion = () => {
   setModoEdicion(false);
-  setFormData({
-    observaciones: expedienteSeleccionado.observaciones || ''
-  });
+  setFormData(armarFormData(expedienteSeleccionado));
 };
 
   const borrarExpediente = async () => {
@@ -683,73 +777,87 @@ export default function GestionModule() {
 
               {/* Solicitante */}
               <div className="seccion-impresion" style={{ marginBottom: '28px' }}>
-                <h3 style={{ 
-                  margin: '0 0 16px 0',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  color: colores.primario,
-                  borderBottom: `2px solid ${colores.fondo}`,
-                  paddingBottom: '8px'
+                <h3 style={{
+                  margin: '0 0 16px 0', fontSize: '16px', fontWeight: '600',
+                  color: colores.primario, borderBottom: `2px solid ${colores.fondo}`, paddingBottom: '8px'
                 }}>
                   SOLICITANTE
                 </h3>
                 <div style={{ display: 'grid', gap: '10px', fontSize: '14px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '12px' }}>
-                    <span style={{ fontWeight: '600', color: colores.texto }}>Tipo:</span>
-                    <span>{expedienteSeleccionado.solicitante?.nombre_tipo || '-'}</span>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '12px' }}>
-                    <span style={{ fontWeight: '600', color: colores.texto }}>DNI:</span>
-                    <span>{expedienteSeleccionado.solicitante?.dni || '-'}</span>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '12px' }}>
-                    <span style={{ fontWeight: '600', color: colores.texto }}>Código Modular:</span>
-                    <span>{expedienteSeleccionado.solicitante?.codigo_modular || '-'}</span>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '12px' }}>
-                    <span style={{ fontWeight: '600', color: colores.texto }}>Nombre:</span>
-                    <span style={{ fontWeight: '600' }}>
-                      {expedienteSeleccionado.solicitante?.nombre_solicitante || '-'}
-                    </span>
-                  </div>
-                  {expedienteSeleccionado.solicitante?.email && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '12px' }}>
-                      <span style={{ fontWeight: '600', color: colores.texto }}>Email:</span>
-                      <span>{expedienteSeleccionado.solicitante.email}</span>
-                    </div>
-                  )}
-                  {expedienteSeleccionado.solicitante?.telefono && (
-                    <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '12px' }}>
-                      <span style={{ fontWeight: '600', color: colores.texto }}>Teléfono:</span>
-                      <span>{expedienteSeleccionado.solicitante.telefono}</span>
-                    </div>
+                  {fila('Tipo:', <span>{expedienteSeleccionado.solicitante?.nombre_tipo || '-'}</span>)}
+
+                  {modoEdicion ? (
+                    <>
+                      {fila('DNI:', <input type="text" value={formData.dni} maxLength={20}
+                        onInput={(e) => setCampo('dni', e.target.value)} style={inputStyle} />)}
+                      {fila('Código Modular:', <input type="text" value={formData.codigo_modular} maxLength={20}
+                        onInput={(e) => setCampo('codigo_modular', e.target.value)} style={inputStyle} />)}
+                      {fila('Nombre:', <input type="text" value={formData.nombre_solicitante}
+                        onInput={(e) => setCampo('nombre_solicitante', e.target.value)} style={inputStyle} />)}
+                      {fila('Email:', <input type="email" value={formData.email}
+                        onInput={(e) => setCampo('email', e.target.value)} style={inputStyle} />)}
+                      {fila('Teléfono:', <input type="text" value={formData.telefono} maxLength={20}
+                        onInput={(e) => setCampo('telefono', e.target.value)} style={inputStyle} />)}
+                    </>
+                  ) : (
+                    <>
+                      {fila('DNI:', <span>{expedienteSeleccionado.solicitante?.dni || '-'}</span>)}
+                      {fila('Código Modular:', <span>{expedienteSeleccionado.solicitante?.codigo_modular || '-'}</span>)}
+                      {fila('Nombre:', <span style={{ fontWeight: '600' }}>{expedienteSeleccionado.solicitante?.nombre_solicitante || '-'}</span>)}
+                      {expedienteSeleccionado.solicitante?.email &&
+                        fila('Email:', <span>{expedienteSeleccionado.solicitante.email}</span>)}
+                      {expedienteSeleccionado.solicitante?.telefono &&
+                        fila('Teléfono:', <span>{expedienteSeleccionado.solicitante.telefono}</span>)}
+                    </>
                   )}
                 </div>
               </div>
-
+              
               {/* Documento y Asunto */}
               <div className="seccion-impresion" style={{ marginBottom: '28px' }}>
-                <h3 style={{ 
-                  margin: '0 0 16px 0',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  color: colores.primario,
-                  borderBottom: `2px solid ${colores.fondo}`,
-                  paddingBottom: '8px'
+                <h3 style={{
+                  margin: '0 0 16px 0', fontSize: '16px', fontWeight: '600',
+                  color: colores.primario, borderBottom: `2px solid ${colores.fondo}`, paddingBottom: '8px'
                 }}>
                   DOCUMENTO
                 </h3>
                 <div style={{ display: 'grid', gap: '10px', fontSize: '14px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '12px' }}>
-                    <span style={{ fontWeight: '600', color: colores.texto }}>Tipo:</span>
-                    <span>{expedienteSeleccionado.asunto?.documento?.nombre_documento || '-'}</span>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: '12px' }}>
-                    <span style={{ fontWeight: '600', color: colores.texto }}>Asunto:</span>
-                    <span style={{ fontWeight: '600' }}>
-                      {expedienteSeleccionado.asunto?.nombre_asunto || '-'}
-                    </span>
-                  </div>
+                  {modoEdicion ? (
+                    <>
+                      {fila('Tipo:',
+                        <select
+                          value={formData.documento_id}
+                          onChange={(e) => setFormData({ ...formData, documento_id: e.target.value, asunto_id: '' })}
+                          style={inputStyle}
+                        >
+                          <option value="">Seleccione tipo de documento</option>
+                          {documentos.map((d) => (
+                            <option key={d.id_documento} value={d.id_documento}>{d.nombre_documento}</option>
+                          ))}
+                        </select>
+                      )}
+                      {fila('Asunto:',
+                        <select
+                          value={formData.asunto_id}
+                          onChange={(e) => setCampo('asunto_id', e.target.value)}
+                          disabled={!formData.documento_id}
+                          style={inputStyle}
+                        >
+                          <option value="">
+                            {formData.documento_id ? 'Seleccione asunto' : 'Primero elija el tipo'}
+                          </option>
+                          {asuntosDelDocumento.map((a) => (
+                            <option key={a.id_asunto} value={a.id_asunto}>{a.nombre_asunto}</option>
+                          ))}
+                        </select>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {fila('Tipo:', <span>{expedienteSeleccionado.asunto?.documento?.nombre_documento || '-'}</span>)}
+                      {fila('Asunto:', <span style={{ fontWeight: '600' }}>{expedienteSeleccionado.asunto?.nombre_asunto || '-'}</span>)}
+                    </>
+                  )}
                 </div>
               </div>
 
