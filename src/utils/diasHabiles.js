@@ -12,8 +12,6 @@ const FERIADOS_FIJOS = [
   '10-08', // Combate de Angamos
   '11-01', // Todos los Santos
   '12-08', // Inmaculada Concepción
-  '11-10',
-  '11-11',
   '12-09', // Batalla de Ayacucho
   '12-25'  // Navidad
 ];
