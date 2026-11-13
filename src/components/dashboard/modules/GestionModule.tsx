@@ -17,6 +17,16 @@ export default function GestionModule() {
   const [asuntos, setAsuntos] = useState([]);
 
   const API_BASE = 'https://sistemaugel-actas-backend.onrender.com/api';
+  const colores = {
+    primario: '#083f8f',
+    secundario: '#0ea5d7',
+    texto: '#6b7280',
+    fondo: '#f3f4f6',
+    blanco: '#ffffff',
+    exito: '#10b981',
+    error: '#dc2626',
+    advertencia: '#f59e0b'
+  };
   const armarFormData = (exp) => ({
   observaciones: exp.observaciones || '',
   documento_id: exp.asunto?.documento?.id_documento ?? exp.asunto?.documento_id ?? '',
@@ -126,17 +136,6 @@ const fila = (label, contenido) => (
     }
   `}</style>
 );
-
-  const colores = {
-    primario: '#083f8f',
-    secundario: '#0ea5d7',
-    texto: '#6b7280',
-    fondo: '#f3f4f6',
-    blanco: '#ffffff',
-    exito: '#10b981',
-    error: '#dc2626',
-    advertencia: '#f59e0b'
-  };
 
   const estadoConfig = {
   'RECEPCIONADO': { emoji: '⚪', color: '#9ca3af', bgColor: '#f3f4f6' },
@@ -284,30 +283,6 @@ const fila = (label, contenido) => (
     alert('Error al actualizar: ' + err.message);
   }
 };
-
-  // Guardar cambios
-    try {
-      const response = await fetch(`${API_BASE}/expedientes/${expedienteSeleccionado.id_expediente}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          observaciones: formData.observaciones
-        })
-      });
-      
-      if (!response.ok) throw new Error('Error al actualizar expediente');
-      
-      const expedienteActualizado = await response.json();
-      alert('Expediente actualizado exitosamente');
-      setExpedienteSeleccionado(expedienteActualizado);
-      setModoEdicion(false);
-      cargarExpedientes();
-    } catch (err) {
-      alert('Error al actualizar: ' + err.message);
-    }
-  };
 
   const cancelarEdicion = () => {
   setModoEdicion(false);
@@ -812,7 +787,7 @@ const fila = (label, contenido) => (
                   )}
                 </div>
               </div>
-              
+
               {/* Documento y Asunto */}
               <div className="seccion-impresion" style={{ marginBottom: '28px' }}>
                 <h3 style={{
