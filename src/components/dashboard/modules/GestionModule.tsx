@@ -15,6 +15,7 @@ export default function GestionModule() {
   const [formData, setFormData] = useState({});
   const [documentos, setDocumentos] = useState([]);
   const [asuntos, setAsuntos] = useState([]);
+  const [estadoSolicitante, setEstadoSolicitante] = useState('idle'); 
 
   const API_BASE = 'https://sistemaugel-actas-backend.onrender.com/api';
   const colores = {
@@ -87,6 +88,48 @@ const setCampo = (campo, valor) => setFormData((prev) => ({ ...prev, [campo]: va
 // Ajusta estos valores a los que realmente guardas en la BD
 const TIPOS_SOLICITANTE = ['Natural', 'Jurídica'];
 const esNatural = (formData.nombre_tipo || '').toLowerCase() === 'natural';
+const identificador = esNatural ? formData.dni : formData.codigo_modular;
+
+useEffect(() => {
+  if (!modoEdicion || !formData.nombre_tipo) return;
+
+  const largoMin = esNatural ? 8 : 6; // ajusta al largo real de tu código modular
+  if (!identificador || identificador.length < largoMin) {
+    setEstadoSolicitante('idle');
+    return;
+  }
+
+  const timer = setTimeout(async () => {
+    setEstadoSolicitante('buscando');
+    try {
+      const params = new URLSearchParams({ nombre_tipo: formData.nombre_tipo, valor: identificador });
+      const r = await fetch(`${API_BASE}/solicitantes/buscar?${params}`);
+
+      if (r.ok) {
+        const s = await r.json();
+        setFormData((prev) => ({
+          ...prev,
+          nombre_solicitante: s.nombre_solicitante || '',
+          email: s.email || '',
+          telefono: s.telefono || ''
+        }));
+        setEstadoSolicitante('encontrado');
+      } else if (r.status === 404) {
+        // Si venía de uno encontrado, limpiamos los campos autorrellenados
+        if (estadoSolicitante === 'encontrado') {
+          setFormData((prev) => ({ ...prev, nombre_solicitante: '', email: '', telefono: '' }));
+        }
+        setEstadoSolicitante('nuevo');
+      } else {
+        setEstadoSolicitante('idle');
+      }
+    } catch {
+      setEstadoSolicitante('idle');
+    }
+  }, 500); // espera 0.5 s después de dejar de escribir
+
+  return () => clearTimeout(timer);
+}, [identificador, formData.nombre_tipo, modoEdicion]);
 
 const inputDeshabilitado = { backgroundColor: colores.fondo, cursor: 'not-allowed', color: '#9ca3af' };
 
@@ -268,6 +311,7 @@ const tipoDocumentoNombre =
   if (!modoEdicion) {
     setModoEdicion(true);
     cargarCatalogos();
+    setEstadoSolicitante('idle');
     return;
   }
 
@@ -276,13 +320,21 @@ const tipoDocumentoNombre =
     alert('Seleccione el tipo de documento y el asunto');
     return;
   }
-  if (!formData.nombre_solicitante.trim()) {
-    alert('El nombre del solicitante es obligatorio');
-    return;
-  }
 
-  if (!formData.nombre_tipo) {
+if (!formData.nombre_tipo) {
   alert('Seleccione el tipo de solicitante');
+  return;
+}
+if (!identificador) {
+  alert(esNatural ? 'Ingrese el DNI' : 'Ingrese el código modular');
+  return;
+}
+if (estadoSolicitante === 'buscando') {
+  alert('Espere a que termine la búsqueda del solicitante');
+  return;
+}
+if (estadoSolicitante === 'nuevo' && !formData.nombre_solicitante.trim()) {
+  alert('Ingrese el nombre del nuevo solicitante');
   return;
 }
 
@@ -324,6 +376,7 @@ const tipoDocumentoNombre =
   const cancelarEdicion = () => {
   setModoEdicion(false);
   setFormData(armarFormData(expedienteSeleccionado));
+  setEstadoSolicitante('idle');
 };
 
   const borrarExpediente = async () => {
@@ -800,7 +853,12 @@ const tipoDocumentoNombre =
                     ? fila('Tipo:',
                         <select
                           value={formData.nombre_tipo}
-                          onChange={(e) => setCampo('nombre_tipo', e.target.value)}
+                          onChange={(e) => setFormData({
+                            ...formData,
+                            nombre_tipo: e.target.value,
+                            dni: '', codigo_modular: '',
+                            nombre_solicitante: '', email: '', telefono: ''
+                          })}
                           style={inputStyle}
                         >
                           <option value="">Seleccione tipo</option>
@@ -819,12 +877,31 @@ const tipoDocumentoNombre =
                         disabled={esNatural}
                         onInput={(e) => setCampo('codigo_modular', e.target.value)}
                         style={{ ...inputStyle, ...(esNatural ? inputDeshabilitado : {}) }} />)}
+
+                      {estadoSolicitante !== 'idle' && fila('',
+                        <span style={{
+                          fontSize: '12px', fontWeight: '600',
+                          color: estadoSolicitante === 'encontrado' ? colores.exito
+                              : estadoSolicitante === 'nuevo' ? colores.advertencia : colores.texto
+                        }}>
+                          {estadoSolicitante === 'buscando' && 'Buscando...'}
+                          {estadoSolicitante === 'encontrado' && '✔ Solicitante registrado: datos cargados automáticamente'}
+                          {estadoSolicitante === 'nuevo' && '➕ No está registrado: complete los datos para agregarlo como nuevo'}
+                        </span>
+                      )}
+
                       {fila('Nombre:', <input type="text" value={formData.nombre_solicitante}
-                        onInput={(e) => setCampo('nombre_solicitante', e.target.value)} style={inputStyle} />)}
+                        disabled={estadoSolicitante !== 'nuevo'}
+                        onInput={(e) => setCampo('nombre_solicitante', e.target.value)}
+                        style={{ ...inputStyle, ...(estadoSolicitante !== 'nuevo' ? inputDeshabilitado : {}) }} />)}
                       {fila('Email:', <input type="email" value={formData.email}
-                        onInput={(e) => setCampo('email', e.target.value)} style={inputStyle} />)}
+                        disabled={estadoSolicitante !== 'nuevo'}
+                        onInput={(e) => setCampo('email', e.target.value)}
+                        style={{ ...inputStyle, ...(estadoSolicitante !== 'nuevo' ? inputDeshabilitado : {}) }} />)}
                       {fila('Teléfono:', <input type="text" value={formData.telefono} maxLength={20}
-                        onInput={(e) => setCampo('telefono', e.target.value)} style={inputStyle} />)}
+                        disabled={estadoSolicitante !== 'nuevo'}
+                        onInput={(e) => setCampo('telefono', e.target.value)}
+                        style={{ ...inputStyle, ...(estadoSolicitante !== 'nuevo' ? inputDeshabilitado : {}) }} />)}
                     </>
                   ) : (
                     <>
