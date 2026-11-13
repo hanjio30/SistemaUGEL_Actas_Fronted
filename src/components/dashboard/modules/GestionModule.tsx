@@ -40,15 +40,28 @@ export default function GestionModule() {
 });
 
 const cargarCatalogos = async () => {
-  if (documentos.length && asuntos.length) return;
   try {
-    const [rDoc, rAsu] = await Promise.all([
-      fetch(`${API_BASE}/documentos`),
-      fetch(`${API_BASE}/asuntos`)
-    ]);
-    if (!rDoc.ok || !rAsu.ok) throw new Error('No se pudieron cargar los catálogos');
-    setDocumentos(await rDoc.json());
-    setAsuntos(await rAsu.json());
+    let docs = documentos;
+    let asus = asuntos;
+
+    if (!docs.length || !asus.length) {
+      const [rDoc, rAsu] = await Promise.all([
+        fetch(`${API_BASE}/documentos`),
+        fetch(`${API_BASE}/asuntos`)
+      ]);
+      if (!rDoc.ok || !rAsu.ok) throw new Error('No se pudieron cargar los catálogos');
+      docs = await rDoc.json();
+      asus = await rAsu.json();
+      setDocumentos(docs);
+      setAsuntos(asus);
+    }
+
+    // Si el expediente no trajo el tipo, lo deducimos desde el asunto
+    setFormData((prev) => {
+      if (prev.documento_id) return prev;
+      const a = asus.find((x) => String(x.id_asunto ?? x.id) === String(prev.asunto_id));
+      return a ? { ...prev, documento_id: a.documento_id ?? '' } : prev;
+    });
   } catch (err) {
     alert(err.message);
   }
@@ -87,6 +100,10 @@ const fila = (label, contenido) => (
 
 const docId = (d) => d.id_documento ?? d.id;
 const docNombre = (d) => d.nombre_documento ?? d.nombre ?? '';
+const tipoDocumentoNombre =
+  expedienteSeleccionado?.asunto?.documento?.nombre_documento ||
+  docNombre(documentos.find((d) => String(docId(d)) === String(formData.documento_id)) || {}) ||
+  '-';
 
   const EstilosImpresion = () => (
   <style>{`
@@ -231,6 +248,7 @@ const docNombre = (d) => d.nombre_documento ?? d.nombre ?? '';
       setExpedienteSeleccionado(data);
       setFormData(armarFormData(data));
       setModoEdicion(false);
+      cargarCatalogos();
     } catch (err) {
       setError(err.message);
     }
@@ -859,7 +877,7 @@ const docNombre = (d) => d.nombre_documento ?? d.nombre ?? '';
                     </>
                   ) : (
                     <>
-                      {fila('Tipo:', <span>{expedienteSeleccionado.asunto?.documento?.nombre_documento || '-'}</span>)}
+                      {fila('Tipo:', <span>{tipoDocumentoNombre}</span>)}
                       {fila('Asunto:', <span style={{ fontWeight: '600' }}>{expedienteSeleccionado.asunto?.nombre_asunto || '-'}</span>)}
                     </>
                   )}
