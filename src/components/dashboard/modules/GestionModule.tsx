@@ -72,7 +72,7 @@ const inputStyle = {
 
 const setCampo = (campo, valor) => setFormData((prev) => ({ ...prev, [campo]: valor }));
 // Ajusta estos valores a los que realmente guardas en la BD
-const TIPOS_SOLICITANTE = ['Natural', 'Institución'];
+const TIPOS_SOLICITANTE = ['Natural', 'Jurídica'];
 const esNatural = (formData.nombre_tipo || '').toLowerCase() === 'natural';
 
 const inputDeshabilitado = { backgroundColor: colores.fondo, cursor: 'not-allowed', color: '#9ca3af' };
