@@ -60,7 +60,7 @@ const cargarCatalogos = async () => {
     setFormData((prev) => {
       if (prev.documento_id) return prev;
       const a = asus.find((x) => String(x.id_asunto ?? x.id) === String(prev.asunto_id));
-      return a ? { ...prev, documento_id: a.documento_id ?? '' } : prev;
+      return a ? { ...prev, documento_id: a.documento_id ?? a.id_documento ?? a.tipo_documento_id ?? '' } : prev;
     });
   } catch (err) {
     alert(err.message);
@@ -68,7 +68,7 @@ const cargarCatalogos = async () => {
 };
 
 const asuntosDelDocumento = asuntos.filter(
-  (a) => String(a.documento_id) === String(formData.documento_id)
+  (a) => String(a.documento_id ?? a.id_documento ?? a.tipo_documento_id) === String(formData.documento_id)
 );
 
 const inputStyle = {
@@ -98,8 +98,12 @@ const fila = (label, contenido) => (
   </div>
 );
 
-const docId = (d) => d.id_documento ?? d.id;
-const docNombre = (d) => d.nombre_documento ?? d.nombre ?? '';
+const docId = (d) =>
+  d.id_documento ?? d.id ?? d.documento_id ?? d.id_tipo ?? Object.values(d)[0];
+
+const docNombre = (d) =>
+  d.nombre_documento ?? d.nombre ?? d.tipo ?? d.nombre_tipo ?? d.descripcion ??
+  Object.values(d).find((v) => typeof v === 'string') ?? '';
 const tipoDocumentoNombre =
   expedienteSeleccionado?.asunto?.documento?.nombre_documento ||
   docNombre(documentos.find((d) => String(docId(d)) === String(formData.documento_id)) || {}) ||
@@ -418,7 +422,7 @@ const tipoDocumentoNombre =
               alignItems: 'center',
               gap: '12px'
             }}>
-              📋 MIS EXPEDIENTES c
+              📋 MIS EXPEDIENTES
             </h2>
           </div>
 
@@ -844,6 +848,9 @@ const tipoDocumentoNombre =
                 }}>
                   DOCUMENTO
                 </h3>
+                <pre style={{ fontSize: '11px', background: '#fffbe6', padding: '8px' }}>
+  {JSON.stringify({ documentos: documentos.slice(0, 2), asuntos: asuntos.slice(0, 2), exp: expedienteSeleccionado.asunto }, null, 2)}
+</pre>
                 <div style={{ display: 'grid', gap: '10px', fontSize: '14px' }}>
                   {modoEdicion ? (
                     <>
