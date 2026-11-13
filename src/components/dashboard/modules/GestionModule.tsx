@@ -35,7 +35,8 @@ export default function GestionModule() {
   dni: exp.solicitante?.dni || '',
   codigo_modular: exp.solicitante?.codigo_modular || '',
   email: exp.solicitante?.email || '',
-  telefono: exp.solicitante?.telefono || ''
+  telefono: exp.solicitante?.telefono || '',
+  nombre_tipo: exp.solicitante?.nombre_tipo || '',
 });
 
 const cargarCatalogos = async () => {
@@ -70,6 +71,11 @@ const inputStyle = {
 };
 
 const setCampo = (campo, valor) => setFormData((prev) => ({ ...prev, [campo]: valor }));
+// Ajusta estos valores a los que realmente guardas en la BD
+const TIPOS_SOLICITANTE = ['Natural', 'Institución'];
+const esNatural = (formData.nombre_tipo || '').toLowerCase() === 'natural';
+
+const inputDeshabilitado = { backgroundColor: colores.fondo, cursor: 'not-allowed', color: '#9ca3af' };
 
 // OJO: es una función, no un componente. Si fuera un componente, el input perdería el foco en cada tecla.
 const fila = (label, contenido) => (
@@ -78,6 +84,9 @@ const fila = (label, contenido) => (
     {contenido}
   </div>
 );
+
+const docId = (d) => d.id_documento ?? d.id;
+const docNombre = (d) => d.nombre_documento ?? d.nombre ?? '';
 
   const EstilosImpresion = () => (
   <style>{`
@@ -250,6 +259,11 @@ const fila = (label, contenido) => (
     return;
   }
 
+  if (!formData.nombre_tipo) {
+  alert('Seleccione el tipo de solicitante');
+  return;
+}
+
   try {
     const response = await fetch(`${API_BASE}/expedientes/${expedienteSeleccionado.id_expediente}`, {
       method: 'PUT',
@@ -258,11 +272,12 @@ const fila = (label, contenido) => (
         observaciones: formData.observaciones,
         asunto_id: Number(formData.asunto_id),
         solicitante: {
-          nombre_solicitante: formData.nombre_solicitante.trim(),
-          dni: formData.dni || null,
-          codigo_modular: formData.codigo_modular || null,
-          email: formData.email || null,
-          telefono: formData.telefono || null
+        nombre_tipo: formData.nombre_tipo,
+        nombre_solicitante: formData.nombre_solicitante.trim(),
+        dni: esNatural ? (formData.dni || null) : null,
+        codigo_modular: esNatural ? null : (formData.codigo_modular || null),
+        email: formData.email || null,
+        telefono: formData.telefono || null
         }
       })
     });
@@ -385,7 +400,7 @@ const fila = (label, contenido) => (
               alignItems: 'center',
               gap: '12px'
             }}>
-              📋 MIS EXPEDIENTES v2
+              📋 MIS EXPEDIENTES
             </h2>
           </div>
 
@@ -759,14 +774,29 @@ const fila = (label, contenido) => (
                   SOLICITANTE
                 </h3>
                 <div style={{ display: 'grid', gap: '10px', fontSize: '14px' }}>
-                  {fila('Tipo:', <span>{expedienteSeleccionado.solicitante?.nombre_tipo || '-'}</span>)}
+                  {modoEdicion
+                    ? fila('Tipo:',
+                        <select
+                          value={formData.nombre_tipo}
+                          onChange={(e) => setCampo('nombre_tipo', e.target.value)}
+                          style={inputStyle}
+                        >
+                          <option value="">Seleccione tipo</option>
+                          {TIPOS_SOLICITANTE.map((t) => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      )
+                    : fila('Tipo:', <span>{expedienteSeleccionado.solicitante?.nombre_tipo || '-'}</span>)}
 
                   {modoEdicion ? (
                     <>
                       {fila('DNI:', <input type="text" value={formData.dni} maxLength={20}
-                        onInput={(e) => setCampo('dni', e.target.value)} style={inputStyle} />)}
+                        disabled={!esNatural}
+                        onInput={(e) => setCampo('dni', e.target.value)}
+                        style={{ ...inputStyle, ...(!esNatural ? inputDeshabilitado : {}) }} />)}
                       {fila('Código Modular:', <input type="text" value={formData.codigo_modular} maxLength={20}
-                        onInput={(e) => setCampo('codigo_modular', e.target.value)} style={inputStyle} />)}
+                        disabled={esNatural}
+                        onInput={(e) => setCampo('codigo_modular', e.target.value)}
+                        style={{ ...inputStyle, ...(esNatural ? inputDeshabilitado : {}) }} />)}
                       {fila('Nombre:', <input type="text" value={formData.nombre_solicitante}
                         onInput={(e) => setCampo('nombre_solicitante', e.target.value)} style={inputStyle} />)}
                       {fila('Email:', <input type="email" value={formData.email}
@@ -799,7 +829,7 @@ const fila = (label, contenido) => (
                 <div style={{ display: 'grid', gap: '10px', fontSize: '14px' }}>
                   {modoEdicion ? (
                     <>
-                      {fila('Tipo:',
+                      {fila('Tipo:',       
                         <select
                           value={formData.documento_id}
                           onChange={(e) => setFormData({ ...formData, documento_id: e.target.value, asunto_id: '' })}
@@ -807,7 +837,7 @@ const fila = (label, contenido) => (
                         >
                           <option value="">Seleccione tipo de documento</option>
                           {documentos.map((d) => (
-                            <option key={d.id_documento} value={d.id_documento}>{d.nombre_documento}</option>
+                            <option key={docId(d)} value={docId(d)}>{docNombre(d)}</option>
                           ))}
                         </select>
                       )}
