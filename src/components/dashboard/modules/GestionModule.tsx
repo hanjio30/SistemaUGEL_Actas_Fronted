@@ -418,7 +418,7 @@ const tipoDocumentoNombre =
               alignItems: 'center',
               gap: '12px'
             }}>
-              📋 MIS EXPEDIENTES
+              📋 MIS EXPEDIENTES c
             </h2>
           </div>
 
